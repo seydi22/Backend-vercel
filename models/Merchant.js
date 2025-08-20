@@ -1,0 +1,46 @@
+// backend/models/Merchant.js
+
+const mongoose = require('mongoose');
+
+const merchantSchema = new mongoose.Schema({
+    nom: { type: String, required: true },
+    secteur: { type: String, required: true },
+    typeCommerce: { type: String, required: true },
+    
+    // Nouveaux champs de localisation
+    region: { type: String, required: true },
+    ville: { type: String, required: true },
+    commune: { type: String, required: true },
+    longitude: { type: Number },
+    latitude: { type: Number },
+
+    // Nouveaux champs pour les informations du gérant
+    nomGerant: { type: String, required: true },
+    prenomGerant: { type: String, required: true },
+    adresse: { type: String, required: true },
+    contact: { type: String, required: true, unique: true },
+    nif: { type: String, unique: true, sparse: true },
+    rc: { type: String, unique: true, sparse: true },
+    
+    // Structure de la pièce d'identité plus flexible
+    pieceIdentite: {
+        type: { type: String, enum: ['cni', 'carte de sejour', 'passeport'] },
+        cniRectoUrl: { type: String },
+        cniVersoUrl: { type: String },
+        passeportUrl: { type: String }
+    },
+    photoEnseigneUrl: { type: String, required: true },
+
+    statut: { type: String, enum: ['en attente', 'validé', 'rejeté','créé','rejeté'], default: 'en attente' },
+    agentRecruteurId: { type: mongoose.Schema.Types.ObjectId, ref: 'Agent' },
+    createdAt: { type: Date, default: Date.now },
+    validatedAt: { type: Date },
+    rejectionReason: { type: String },
+    agentSaisieId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Agent',
+        default: null // Par défaut, aucun agent n'est assigné
+    },
+});
+
+module.exports = mongoose.model('Merchant', merchantSchema);
