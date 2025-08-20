@@ -309,7 +309,26 @@ router.get(
     [authMiddleware, roleMiddleware(['admin'])],
     async (req, res) => {
         try {
-            const merchants = await Merchant.find().populate('agentRecruteurId', 'matricule').select('-documents');
+            const { statut, search } = req.query;
+
+            // Construction du filtre
+            const filter = {};
+            if (statut) {
+                filter.statut = statut;
+            }
+            if (search) {
+                // Recherche sur nom, nomGerant ou contact (insensible à la casse)
+                filter.$or = [
+                    { nom: { $regex: search, $options: 'i' } },
+                    { nomGerant: { $regex: search, $options: 'i' } },
+                    { contact: { $regex: search, $options: 'i' } },
+                ];
+            }
+
+            const merchants = await Merchant.find(filter)
+                .populate('agentRecruteurId', 'matricule')
+                .select('-documents');
+
             res.json(merchants);
         } catch (err) {
             console.error(err.message);
@@ -317,6 +336,7 @@ router.get(
         }
     }
 );
+
 router.get(
     '/all',
     authMiddleware,
