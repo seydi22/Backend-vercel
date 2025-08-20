@@ -242,46 +242,85 @@ router.get(
         }
     }
 );
-// route  pour exporter
 router.get(
     '/export',
     [authMiddleware, roleMiddleware(['admin', 'superviseur'])],
     async (req, res) => {
         try {
-            // 1. Récupérer tous les marchands de la base de données
-            const merchants = await Merchant.find().lean(); // Utilisation de .lean() pour un objet JS simple
-
+            const merchants = await Merchant.find().lean();
             if (!merchants || merchants.length === 0) {
                 return res.status(404).json({ msg: 'Aucun marchand à exporter.' });
             }
 
-            // 2. Mapper les données au format d'export
-            const exportData = merchants.map(merchant => {
-                return {
-                    'nom_enseigne_commerciale': merchant.nom,
-                    'nom_representant_legal': merchant.nomGerant,
-                    'prenom_representant_legal': merchant.prenomGerant,
-                    'contact': merchant.contact,
-                    'adresse_physique': merchant.adresse,
-                    'NIF': merchant.nif,
-                    'RC': merchant.rc,
-                    'secteur_activite': merchant.secteur,
-                    'type_commerce': merchant.typeCommerce,
-                    'region': merchant.region,
-                    'ville': merchant.ville,
-                    'commune': merchant.commune,
-                    'latitude': merchant.latitude,
-                    'longitude': merchant.longitude,
-                    'short_code': merchant.shortCode
-                };
-            });
+            // Colonnes du template
+            const headers = [
+                'ShortCode',
+                'OrganizationName',
+                'Country',
+                'Country Value',
+                'City',
+                'City Value',
+                'Preferred Notification Channel',
+                'Preferred Notification Channel Value',
+                'Notification Receiving MSISDN',
+                'Notification Receiving MSISDN Value',
+                'Preferred Notification Language',
+                'Preferred Notification Language Value',
+                'Commercial Register',
+                'Commercial Register Value',
+                'NIF',
+                'NIF Value',
+                'Organization Type',
+                'Organization Type Value',
+                'Contact Type',
+                'Contact Type Value',
+                'Contact First Name',
+                'Contact First Name Value',
+                'Contact Second Name',
+                'Contact Second Name Value',
+                'Product',
+                'ChargeProfile',
+                'Purpose of the company ',
+                'Purpose of the company Value'
+            ];
 
-            // 3. Créer une feuille de calcul avec les données
-            const worksheet = xlsx.utils.json_to_sheet(exportData);
+            // Préparer les données dans le bon ordre
+            const exportData = merchants.map(m => ({
+                'ShortCode': m.shortCode || '',
+                'OrganizationName': m.nom || '',
+                'Country': 'Mauritanie', // valeur fixe si ton système l’impose
+                'Country Value': 'MR',  // code ISO si nécessaire
+                'City': m.ville || '',
+                'City Value': m.ville || '',
+                'Preferred Notification Channel': 'SMS',
+                'Preferred Notification Channel Value': 'SMS',
+                'Notification Receiving MSISDN': m.contact || '',
+                'Notification Receiving MSISDN Value': m.contact || '',
+                'Preferred Notification Language': 'FR',
+                'Preferred Notification Language Value': 'fr',
+                'Commercial Register': m.rc || '',
+                'Commercial Register Value': m.rc || '',
+                'NIF': m.nif || '',
+                'NIF Value': m.nif || '',
+                'Organization Type': 'Merchant',
+                'Organization Type Value': 'MERCHANT',
+                'Contact Type': 'Gérant',
+                'Contact Type Value': 'Manager',
+                'Contact First Name': m.prenomGerant || '',
+                'Contact First Name Value': m.prenomGerant || '',
+                'Contact Second Name': m.nomGerant || '',
+                'Contact Second Name Value': m.nomGerant || '',
+                'Product': 'MOBILE_MONEY',
+                'ChargeProfile': '',
+                'Purpose of the company ': '',
+                'Purpose of the company Value': ''
+            }));
+
+            // Génération du fichier Excel
+            const worksheet = xlsx.utils.json_to_sheet(exportData, { header: headers });
             const workbook = xlsx.utils.book_new();
             xlsx.utils.book_append_sheet(workbook, worksheet, 'Marchands');
 
-            // 4. Définir les en-têtes de réponse pour le téléchargement
             res.setHeader(
                 'Content-Type',
                 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
@@ -291,16 +330,16 @@ router.get(
                 'attachment; filename=merchants_export.xlsx'
             );
 
-            // 5. Envoyer le fichier en tant que buffer
             const buffer = xlsx.write(workbook, { type: 'buffer', bookType: 'xlsx' });
             res.send(buffer);
 
         } catch (err) {
             console.error(err.message);
-            res.status(500).send('Erreur du serveur lors de l\'exportation des marchands.');
+            res.status(500).send("Erreur du serveur lors de l'exportation des marchands.");
         }
     }
 );
+
 // @route   GET /api/merchants/all
 // @desc    Obtenir la liste de tous les marchands, tous statuts confondus
 // @access  Private (Admin)
