@@ -247,9 +247,10 @@ router.get(
     [authMiddleware, roleMiddleware(['admin', 'superviseur'])],
     async (req, res) => {
         try {
-            const merchants = await Merchant.find().lean();
+            // Ne récupérer que les marchands validés
+            const merchants = await Merchant.find({ statut: 'validé' }).lean();
             if (!merchants || merchants.length === 0) {
-                return res.status(404).json({ msg: 'Aucun marchand à exporter.' });
+                return res.status(404).json({ msg: 'Aucun marchand validé à exporter.' });
             }
 
             // Colonnes du template
@@ -288,8 +289,8 @@ router.get(
             const exportData = merchants.map(m => ({
                 'ShortCode': m.shortCode || '',
                 'OrganizationName': m.nom || '',
-                'Country': 'Mauritanie', // valeur fixe si ton système l’impose
-                'Country Value': 'MR',  // code ISO si nécessaire
+                'Country': 'Mauritanie',
+                'Country Value': 'MR',
                 'City': m.ville || '',
                 'City Value': m.ville || '',
                 'Preferred Notification Channel': 'SMS',
@@ -308,9 +309,9 @@ router.get(
                 'Contact Type Value': 'Manager',
                 'Contact First Name': m.prenomGerant || '',
                 'Contact First Name Value': m.prenomGerant || '',
-                'Contact Second Name': m.nomGerant || '',
-                'Contact Second Name Value': m.nomGerant || '',
-                'Product': 'MOBILE_MONEY',
+                'Contact Second Name': '',
+                'Contact Second Name Value':'',
+                'Product': '',
                 'ChargeProfile': '',
                 'Purpose of the company ': '',
                 'Purpose of the company Value': ''
@@ -339,6 +340,7 @@ router.get(
         }
     }
 );
+
 
 // @route   GET /api/merchants/all
 // @desc    Obtenir la liste de tous les marchands, tous statuts confondus
