@@ -247,13 +247,13 @@ router.get(
     [authMiddleware, roleMiddleware(['admin', 'superviseur'])],
     async (req, res) => {
         try {
-            // Ne récupérer que les marchands validés
+            // Récupérer uniquement les marchands validés
             const merchants = await Merchant.find({ statut: 'validé' }).lean();
             if (!merchants || merchants.length === 0) {
                 return res.status(404).json({ msg: 'Aucun marchand validé à exporter.' });
             }
 
-            // Colonnes du template
+            // Colonnes du template (ordre exact)
             const headers = [
                 'ShortCode',
                 'OrganizationName',
@@ -285,58 +285,53 @@ router.get(
                 'Purpose of the company Value'
             ];
 
-            // Préparer les données dans le bon ordre
+            // Construire les données pour l'export
             const exportData = merchants.map(m => ({
                 'ShortCode': m.shortCode || '',
                 'OrganizationName': m.nom || '',
-                'Country': 'Mauritanie',
-                'Country Value': 'MR',
-                'City': m.ville || '',
+                'Country': 'Country', // FIXE
+                'Country Value': 'MRT', // FIXE
+                'City': 'City', // FIXE
                 'City Value': m.ville || '',
-                'Preferred Notification Channel': 'SMS',
+                'Preferred Notification Channel': 'ContactDetails|PreferredNotificationChannel', // FIXE
                 'Preferred Notification Channel Value': 'SMS',
-                'Notification Receiving MSISDN': m.contact || '',
+                'Notification Receiving MSISDN': 'ContactDetails|NotificationReceivingMSISDN', // FIXE
                 'Notification Receiving MSISDN Value': m.contact || '',
-                'Preferred Notification Language': 'FR',
+                'Preferred Notification Language': 'PreferredNotificationLanguage', // FIXE
                 'Preferred Notification Language Value': 'fr',
-                'Commercial Register': m.rc || '',
+                'Commercial Register': 'CorporateInformation|CommercialRegister', // FIXE
                 'Commercial Register Value': m.rc || '',
-                'NIF': m.nif || '',
+                'NIF': 'CorporateInformation|NIF', // FIXE
                 'NIF Value': m.nif || '',
-                'Organization Type': 'Merchant',
+                'Organization Type': 'OrganizationType', // FIXE
                 'Organization Type Value': 'MERCHANT',
-                'Contact Type': 'Gérant',
+                'Contact Type': 'ContactDetails|ContactType', // FIXE
                 'Contact Type Value': 'Manager',
-                'Contact First Name': m.prenomGerant || '',
+                'Contact First Name': 'ContactDetails|ContactFirstName', // FIXE
                 'Contact First Name Value': m.prenomGerant || '',
-                'Contact Second Name': '',
-                'Contact Second Name Value':'',
+                'Contact Second Name': 'ContactDetails|ContactSecondName', // FIXE
+                'Contact Second Name Value': '',
                 'Product': '',
                 'ChargeProfile': '',
-                'Purpose of the company ': '',
+                'Purpose of the company ': 'CorporateInformation|PurposeOfTheCompany', // FIXE
                 'Purpose of the company Value': ''
             }));
 
-            // Génération du fichier Excel
-            const worksheet = xlsx.utils.json_to_sheet(exportData, { header: headers });
-            const workbook = xlsx.utils.book_new();
-            xlsx.utils.book_append_sheet(workbook, worksheet, 'Marchands');
+            // Création du fichier Excel
+            const XLSX = require('xlsx');
+            const workbook = XLSX.utils.book_new();
+            const worksheet = XLSX.utils.json_to_sheet(exportData, { header: headers });
+            XLSX.utils.book_append_sheet(workbook, worksheet, 'Marchands');
 
-            res.setHeader(
-                'Content-Type',
-                'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-            );
-            res.setHeader(
-                'Content-Disposition',
-                'attachment; filename=merchants_export.xlsx'
-            );
-
-            const buffer = xlsx.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+            // Envoi du fichier au client
+            const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+            res.setHeader('Content-Disposition', 'attachment; filename="merchants_export.xlsx"');
+            res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
             res.send(buffer);
 
-        } catch (err) {
-            console.error(err.message);
-            res.status(500).send("Erreur du serveur lors de l'exportation des marchands.");
+        } catch (error) {
+            console.error('Erreur export marchands:', error);
+            res.status(500).json({ msg: 'Erreur lors de l’export des marchands.' });
         }
     }
 );
