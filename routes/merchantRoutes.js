@@ -289,32 +289,32 @@ router.get(
             const exportData = merchants.map(m => ({
                 'ShortCode': m.shortCode || '',
                 'OrganizationName': m.nom || '',
-                'Country': 'Country', // FIXE
+                'Country': '[Address Details][Country]', // FIXE
                 'Country Value': 'MRT', // FIXE
-                'City': 'City', // FIXE
+                'City': '[Address Details][City]', // FIXE
                 'City Value': m.ville || '',
-                'Preferred Notification Channel': 'ContactDetails|PreferredNotificationChannel', // FIXE
-                'Preferred Notification Channel Value': 'SMS',
-                'Notification Receiving MSISDN': 'ContactDetails|NotificationReceivingMSISDN', // FIXE
+                'Preferred Notification Channel': '[Contact Details][Preferred Notification Channel]', // FIXE
+                'Preferred Notification Channel Value': '1001',
+                'Notification Receiving MSISDN': '[Contact Details][Notification Receiving MSISDN]', // FIXE
                 'Notification Receiving MSISDN Value': m.contact || '',
-                'Preferred Notification Language': 'PreferredNotificationLanguage', // FIXE
+                'Preferred Notification Language': '[Contact Details][Preferred Notification Language]', // FIXE
                 'Preferred Notification Language Value': 'fr',
-                'Commercial Register': 'CorporateInformation|CommercialRegister', // FIXE
+                'Commercial Register': '[Corporate Information][Commercial Register]', // FIXE
                 'Commercial Register Value': m.rc || '',
-                'NIF': 'CorporateInformation|NIF', // FIXE
+                'NIF': '[Corporate Information][NIF]', // FIXE
                 'NIF Value': m.nif || '',
-                'Organization Type': 'OrganizationType', // FIXE
+                'Organization Type': '[Organization Type][Organization Type]', // FIXE
                 'Organization Type Value': 'MERCHANT',
-                'Contact Type': 'ContactDetails|ContactType', // FIXE
-                'Contact Type Value': 'Manager',
-                'Contact First Name': 'ContactDetails|ContactFirstName', // FIXE
+                'Contact Type': '[Organization Contact Details][Contact Type]', // FIXE
+                'Contact Type Value': '02',
+                'Contact First Name': '[Organization Contact Details][Contact First Name]', // FIXE
                 'Contact First Name Value': m.prenomGerant || '',
-                'Contact Second Name': 'ContactDetails|ContactSecondName', // FIXE
-                'Contact Second Name Value': '',
-                'Product': '',
-                'ChargeProfile': '',
-                'Purpose of the company ': 'CorporateInformation|PurposeOfTheCompany', // FIXE
-                'Purpose of the company Value': ''
+                'Contact Second Name': '[Organization Contact Details][Contact Second Name]', // FIXE
+                'Contact Second Name Value': m.nomGerant || "",
+                'Product': '45071',
+                'ChargeProfile': '55055',
+                'Purpose of the company ': '[Corporate Information][Purpose of the company]', // FIXE
+                'Purpose of the company Value': '01'
             }));
 
             // Création du fichier Excel
