@@ -441,8 +441,6 @@ router.get(
         }
     }
 );
-// Route pour valider un marchand (réservée aux superviseurs et admin )
-// Correction : Remplacer router.put par router.post
 router.post(
     '/validate/:id',
     authMiddleware,
@@ -455,17 +453,33 @@ router.post(
                 return res.status(404).json({ msg: 'Marchand non trouvé.' });
             }
 
-            // Mettez à jour le statut du marchand
+            // Vérifie s'il est déjà validé (pour éviter de réattribuer un shortcode)
+            if (merchant.statut === 'validé') {
+                return res.status(400).json({ msg: 'Ce marchand est déjà validé.' });
+            }
+
+            // Trouver le dernier shortCode attribué
+            const lastMerchant = await Merchant.findOne({ shortCode: { $exists: true } })
+                .sort({ shortCode: -1 });
+
+            let newShortCode = 3000; // Point de départ
+            if (lastMerchant && lastMerchant.shortCode) {
+                newShortCode = lastMerchant.shortCode + 1;
+            }
+
+            // Attribuer le shortCode et valider
+            merchant.shortCode = newShortCode;
             merchant.statut = 'validé';
             merchant.validatedAt = Date.now();
             await merchant.save();
-            
+
             // Mettez à jour la performance de l'agent recruteur
-            const agent = await Agent.findById(merchant.agentRecruteurId._id);
-            if (agent) {
-                // Correction : Incrémentation de la propriété 'validations' de l'objet 'performance'
-                agent.performance.validations += 1;
-                await agent.save();
+            if (merchant.agentRecruteurId) {
+                const agent = await Agent.findById(merchant.agentRecruteurId);
+                if (agent) {
+                    agent.performance.validations += 1;
+                    await agent.save();
+                }
             }
 
             res.json({ msg: 'Marchand validé avec succès.', merchant });
@@ -475,6 +489,7 @@ router.post(
         }
     }
 );
+
 
 
 

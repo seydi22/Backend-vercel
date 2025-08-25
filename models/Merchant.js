@@ -41,6 +41,8 @@ const merchantSchema = new mongoose.Schema({
         ref: 'Agent',
         default: null // Par défaut, aucun agent n'est assigné
     },
+    shortCode: { type: Number, unique: true, sparse: true },
+
 });
 
 module.exports = mongoose.model('Merchant', merchantSchema);
