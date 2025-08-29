@@ -70,7 +70,8 @@ router.post(
             nomGerant, prenomGerant, dateNaissanceGerant,
             lieuNaissanceGerant, numeroCompteMoov, adresse,
             contact, nif, rc, typePiece, longitude, latitude,
-            nomOperateur, codeOperateur // 👈 Nouveaux champs pour l'opérateur
+             // 👈 Nouveaux champs pour l'opérateur
+            nomOperateur, prenomOperateur, nniOperateur, telephoneOperateur, codeOperateur
         } = req.body;
 
         // Récupère les URL des images depuis l'objet req.files
@@ -80,13 +81,17 @@ router.post(
         const photoEnseigneUrl = req.files['photoEnseigne'] ? req.files['photoEnseigne'][0].path : null;
 
         // Valide la présence des données de l'opérateur, qui sont maintenant requises
-        if (!nomOperateur || !codeOperateur) {
-            return res.status(400).json({ msg: "Les informations de l'opérateur sont requises." });
+        if (!nomOperateur || !prenomOperateur || !nniOperateur || !telephoneOperateur || !codeOperateur) {
+            return res.status(400).json({ msg: "Toutes les informations de l'opérateur sont requises." });
         }
 
         try {
             // Créer un objet pour le premier opérateur
-            const newOperator = { nom: nomOperateur, code: codeOperateur };
+            const newOperator = {  nom: nomOperateur,
+                prenom: prenomOperateur,
+                nni: nniOperateur,
+                telephone: telephoneOperateur,
+                code: codeOperateur};
 
             // Créer un nouvel objet marchand avec les données du formulaire et le premier opérateur
             const newMerchant = new Merchant({

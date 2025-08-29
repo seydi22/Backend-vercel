@@ -4,8 +4,11 @@ const mongoose = require('mongoose');
 
 const operatorSchema = new mongoose.Schema({
     nom: { type: String, required: true },
-    code: { type: String, required: true }, // Code unique de l'opérateur
-    shortCode: { type: Number }, // Sera rempli lors de la validation du marchand
+    prenom: { type: String, required: true },
+    nni: { type: String, required: true, unique: true },
+    telephone: { type: String, required: true, unique: true },
+    code: { type: String, required: true }, // Ce champ est toujours nécessaire
+    shortCode: { type: Number },
     createdAt: { type: Date, default: Date.now }
 });
 
