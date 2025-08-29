@@ -2,6 +2,13 @@
 
 const mongoose = require('mongoose');
 
+const operatorSchema = new mongoose.Schema({
+    nom: { type: String, required: true },
+    code: { type: String, required: true }, // Code unique de l'opérateur
+    shortCode: { type: Number }, // Sera rempli lors de la validation du marchand
+    createdAt: { type: Date, default: Date.now }
+});
+
 const merchantSchema = new mongoose.Schema({
     nom: { type: String, required: true },
     secteur: { type: String, required: true },
@@ -36,13 +43,10 @@ const merchantSchema = new mongoose.Schema({
     createdAt: { type: Date, default: Date.now },
     validatedAt: { type: Date },
     rejectionReason: { type: String },
-    agentSaisieId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Agent',
-        default: null // Par défaut, aucun agent n'est assigné
-    },
     shortCode: { type: Number, unique: true, sparse: true },
 
+    // Tableau pour stocker les opérateurs liés à ce marchand
+    operators: [operatorSchema] 
 });
 
 module.exports = mongoose.model('Merchant', merchantSchema);

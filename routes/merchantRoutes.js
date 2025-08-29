@@ -64,11 +64,13 @@ router.post(
         { name: 'photoEnseigne', maxCount: 1 }
     ]),
     async (req, res) => {
+        // Déstructure toutes les données du corps de la requête, y compris les nouvelles informations de l'opérateur
         const {
             nom, secteur, typeCommerce, region, ville, commune,
             nomGerant, prenomGerant, dateNaissanceGerant,
             lieuNaissanceGerant, numeroCompteMoov, adresse,
-            contact, nif, rc, typePiece, longitude, latitude
+            contact, nif, rc, typePiece, longitude, latitude,
+            nomOperateur, codeOperateur // 👈 Nouveaux champs pour l'opérateur
         } = req.body;
 
         // Récupère les URL des images depuis l'objet req.files
@@ -77,8 +79,16 @@ router.post(
         const photoPasseportUrl = req.files['photoPasseport'] ? req.files['photoPasseport'][0].path : null;
         const photoEnseigneUrl = req.files['photoEnseigne'] ? req.files['photoEnseigne'][0].path : null;
 
+        // Valide la présence des données de l'opérateur, qui sont maintenant requises
+        if (!nomOperateur || !codeOperateur) {
+            return res.status(400).json({ msg: "Les informations de l'opérateur sont requises." });
+        }
+
         try {
-            // Créer un nouvel objet marchand
+            // Créer un objet pour le premier opérateur
+            const newOperator = { nom: nomOperateur, code: codeOperateur };
+
+            // Créer un nouvel objet marchand avec les données du formulaire et le premier opérateur
             const newMerchant = new Merchant({
                 nom, secteur, typeCommerce, region, ville, commune,
                 nomGerant, prenomGerant, dateNaissanceGerant,
@@ -91,9 +101,11 @@ router.post(
                     passeportUrl: photoPasseportUrl
                 },
                 photoEnseigneUrl,
-                agentRecruteurId: req.user.id
+                agentRecruteurId: req.user.id,
+                operators: [newOperator] // 👈 Ajoute l'opérateur au tableau
             });
 
+            // Sauvegarder le nouveau marchand dans la base de données
             const merchant = await newMerchant.save();
 
             // Mettre à jour la performance de l'agent recruteur
@@ -103,145 +115,18 @@ router.post(
                 await agent.save();
             }
 
+            // Répondre avec l'objet marchand nouvellement créé
             res.status(201).json(merchant);
 
         } catch (err) {
             console.error(err.message);
+            // Gérer les erreurs de la base de données (doublons, etc.)
             res.status(500).send('Erreur du serveur.');
         }
     }
 );
-// Nouvelle route pour la création en masse de marchands
-router.post(
-    '/bulk-create',
-    authMiddleware,
-    roleMiddleware(['admin']),
-    upload.single('file'),
-    async (req, res) => {
-        try {
-            if (!req.file) {
-                return res.status(400).json({ msg: 'Aucun fichier n\'a été téléchargé.' });
-            }
 
-            const workbook = xlsx.read(req.file.buffer, { type: 'buffer' });
-            const sheetName = workbook.SheetNames[0];
-            const worksheet = workbook.Sheets[sheetName];
-            const merchantsData = xlsx.utils.sheet_to_json(worksheet);
 
-            const createdMerchants = [];
-            const errors = [];
-
-            for (const data of merchantsData) {
-                try {
-                    // On vérifie si un marchand avec ce contact existe déjà pour éviter les doublons
-                    const existingMerchant = await Merchant.findOne({ contact: data.contact });
-                    if (existingMerchant) {
-                        errors.push({
-                            contact: data.contact,
-                            error: 'Ce marchand existe déjà.',
-                            data: data
-                        });
-                        continue;
-                    }
-
-                    // Mapping des données du fichier vers le schéma du modèle
-                    const newMerchant = new Merchant({
-                        nom: data.nom_enseigne_commerciale,
-                        nomGerant: data.nom_representant_legal,
-                        prenomGerant: data.prenom_representant_legal,
-                        contact: data.contact,
-                        adresse: data.adresse_physique,
-                        nif: data.NIF,
-                        rc: data.RC,
-                        secteur: data.secteur_activite,
-                        typeCommerce: data.type_commerce,
-                        region: data.region,
-                        ville: data.ville,
-                        commune: data.commune,
-                        // Assurez-vous que les champs latitude et longitude sont correctement formatés dans votre fichier
-                        latitude: data.latitude,
-                        longitude: data.longitude,
-                        // Vous pouvez définir d'autres champs par défaut ici
-                        statut: 'validé', // Statut par défaut pour le bulk create
-                        agentRecruteurId: req.user.id // L'admin qui a fait l'upload
-                    });
-
-                    const savedMerchant = await newMerchant.save();
-                    createdMerchants.push(savedMerchant);
-                } catch (err) {
-                    console.error(`Erreur lors de la création du marchand : ${data.contact}`, err.message);
-                    errors.push({
-                        contact: data.contact,
-                        error: err.message,
-                        data: data
-                    });
-                }
-            }
-
-            res.status(200).json({
-                msg: `${createdMerchants.length} marchands créés avec succès.`,
-                created: createdMerchants,
-                errors: errors
-            });
-
-        } catch (err) {
-            console.error(err.message);
-            res.status(500).send('Erreur du serveur lors du traitement du fichier.');
-        }
-    }
-);
-//template 
-
-// @route   GET /api/merchants/template
-// @desc    Télécharger un fichier template Excel pour la création en masse de marchands
-// @access  Private (Admin, Superviseur)
-router.get(
-    '/template',
-    [authMiddleware, roleMiddleware(['admin', 'superviseur'])],
-    async (req, res) => {
-        try {
-            // Définir les en-têtes de colonnes exacts comme dans le fichier fourni
-            const headers = [
-                'nom_enseigne_commerciale',
-                'nom_representant_legal',
-                'prenom_representant_legal',
-                'contact',
-                'adresse_physique',
-                'NIF',
-                'RC',
-                'secteur_activite',
-                'type_commerce',
-                'region',
-                'ville',
-                'commune',
-                'latitude',
-                'longitude',
-                'short_code'
-            ];
-
-            // Créer une feuille de calcul vide
-            const ws = xlsx.utils.json_to_sheet([], { header: headers });
-            
-            // Créer un nouveau classeur
-            const wb = xlsx.utils.book_new();
-            xlsx.utils.book_append_sheet(wb, ws, 'Merchants');
-
-            // Écrire le fichier en tant que buffer
-            const buf = xlsx.write(wb, { type: 'buffer', bookType: 'xlsx' });
-
-            // Définir les en-têtes de réponse pour le téléchargement
-            res.setHeader('Content-Disposition', 'attachment; filename="merchant_template.xlsx"');
-            res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-            
-            // Envoyer le buffer en réponse
-            res.send(buf);
-
-        } catch (err) {
-            console.error(err.message);
-            res.status(500).send('Erreur du serveur lors de la génération du fichier.');
-        }
-    }
-);
 router.get(
     '/export',
     [authMiddleware, roleMiddleware(['admin', 'superviseur'])],
@@ -444,7 +329,7 @@ router.get(
 router.post(
     '/validate/:id',
     authMiddleware,
-    roleMiddleware(['admin','superviseur']),
+    roleMiddleware(['admin', 'superviseur']),
     async (req, res) => {
         try {
             const merchant = await Merchant.findById(req.params.id);
@@ -452,28 +337,30 @@ router.post(
             if (!merchant) {
                 return res.status(404).json({ msg: 'Marchand non trouvé.' });
             }
-
-            // Vérifie s'il est déjà validé (pour éviter de réattribuer un shortcode)
             if (merchant.statut === 'validé') {
                 return res.status(400).json({ msg: 'Ce marchand est déjà validé.' });
             }
 
-            // Trouver le dernier shortCode attribué
             const lastMerchant = await Merchant.findOne({ shortCode: { $exists: true } })
                 .sort({ shortCode: -1 });
 
-            let newShortCode = 3000; // Point de départ
+            let newShortCode = 3000;
             if (lastMerchant && lastMerchant.shortCode) {
                 newShortCode = lastMerchant.shortCode + 1;
             }
 
-            // Attribuer le shortCode et valider
+            // Attribuer le shortCode au marchand
             merchant.shortCode = newShortCode;
             merchant.statut = 'validé';
             merchant.validatedAt = Date.now();
+            
+            // 👈 PROPAAGATION DU SHORT CODE AUX OPÉRATEURS
+            merchant.operators.forEach(operator => {
+                operator.shortCode = newShortCode;
+            });
+
             await merchant.save();
 
-            // Mettez à jour la performance de l'agent recruteur
             if (merchant.agentRecruteurId) {
                 const agent = await Agent.findById(merchant.agentRecruteurId);
                 if (agent) {
@@ -489,7 +376,6 @@ router.post(
         }
     }
 );
-
 
 
 
