@@ -71,7 +71,7 @@ router.post(
             lieuNaissanceGerant, numeroCompteMoov, adresse,
             contact, nif, rc, typePiece, longitude, latitude,
              // 👈 Nouveaux champs pour l'opérateur
-            nomOperateur, prenomOperateur, nniOperateur, telephoneOperateur, codeOperateur
+            nomOperateur, prenomOperateur, nniOperateur, telephoneOperateur, 
         } = req.body;
 
         // Récupère les URL des images depuis l'objet req.files
@@ -81,7 +81,7 @@ router.post(
         const photoEnseigneUrl = req.files['photoEnseigne'] ? req.files['photoEnseigne'][0].path : null;
 
         // Valide la présence des données de l'opérateur, qui sont maintenant requises
-        if (!nomOperateur || !prenomOperateur || !nniOperateur || !telephoneOperateur || !codeOperateur) {
+        if (!nomOperateur || !prenomOperateur || !nniOperateur || !telephoneOperateur ) {
             return res.status(400).json({ msg: "Toutes les informations de l'opérateur sont requises." });
         }
 
@@ -91,7 +91,7 @@ router.post(
                 prenom: prenomOperateur,
                 nni: nniOperateur,
                 telephone: telephoneOperateur,
-                code: codeOperateur};
+                };
 
             // Créer un nouvel objet marchand avec les données du formulaire et le premier opérateur
             const newMerchant = new Merchant({
@@ -347,12 +347,18 @@ router.post(
             }
 
             const lastMerchant = await Merchant.findOne({ shortCode: { $exists: true } })
-                .sort({ shortCode: -1 });
+    .sort({ shortCode: -1 }); // tri décroissant pour avoir le plus grand shortCode
 
-            let newShortCode = 3000;
-            if (lastMerchant && lastMerchant.shortCode) {
-                newShortCode = lastMerchant.shortCode + 1;
-            }
+// Shortcode par défaut
+let newShortCode = "003000";
+
+if (lastMerchant && lastMerchant.shortCode) {
+    // Convertir l'ancien shortCode en nombre, incrémenter puis reformater avec padding
+    const incremented = (parseInt(lastMerchant.shortCode, 10) + 1)
+        .toString()
+        .padStart(6, '0'); // garde toujours 6 chiffres
+    newShortCode = incremented;
+}
 
             // Attribuer le shortCode au marchand
             merchant.shortCode = newShortCode;

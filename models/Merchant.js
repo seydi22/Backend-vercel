@@ -7,7 +7,7 @@ const operatorSchema = new mongoose.Schema({
     prenom: { type: String, required: true },
     nni: { type: String, required: true, unique: true },
     telephone: { type: String, required: true, unique: true },
-    code: { type: String, required: true }, // Ce champ est toujours nécessaire
+   
     shortCode: { type: Number },
     createdAt: { type: Date, default: Date.now }
 });
