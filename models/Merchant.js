@@ -8,7 +8,7 @@ const operatorSchema = new mongoose.Schema({
     nni: { type: String, required: true, unique: true },
     telephone: { type: String, required: true, unique: true },
    
-    shortCode: { type: Number },
+    shortCode: { type: String },
     createdAt: { type: Date, default: Date.now }
 });
 
