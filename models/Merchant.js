@@ -46,7 +46,7 @@ const merchantSchema = new mongoose.Schema({
     createdAt: { type: Date, default: Date.now },
     validatedAt: { type: Date },
     rejectionReason: { type: String },
-    shortCode: { type: Number, unique: true, sparse: true },
+    shortCode: { type: String, unique: true, sparse: true },
 
     // Tableau pour stocker les opérateurs liés à ce marchand
     operators: [operatorSchema] 

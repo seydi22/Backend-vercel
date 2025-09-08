@@ -383,7 +383,7 @@ if (lastMerchant && lastMerchant.shortCode) {
             res.json({ msg: 'Marchand validé avec succès.', merchant });
         } catch (err) {
             console.error(err.message);
-            res.status(500).send('Erreur du serveur.');
+            res.status(500).send('Erreur du serveur ok.');
         }
     }
 );
