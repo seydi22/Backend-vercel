@@ -1,24 +1,22 @@
 const express = require('express');
 const mongoose = require('mongoose');
-const cors = require('cors'); // <-- Ajoutez cette ligne
+const cors = require('cors');
 const dotenv = require('dotenv');
-const agentRoutes = require('./routes/agentRoutes'); 
-const merchantRoutes = require('./routes/merchantRoutes'); // Importe les routes de marchand
-const path = require('path'); // Ajoutez le module 'path' pour servir les fichiers statiques
+const agentRoutes = require('./routes/agentRoutes');
+const merchantRoutes = require('./routes/merchantRoutes');
+const path = require('path');
 const cloudinary = require('cloudinary').v2;
-// Unique identifier for this deployment version: 20250922_1530_VercelDebug
-console.log('>>> Vercel Debug: server.js loaded. Version 20250922_1530_VercelDebug <<<');
 
+console.log('>>> Vercel Debug: server.js loaded. Version 20250922_1530_VercelDebug <<<');
 
 const { errorHandler } = require('./middleware/errorMiddleware');
 
-
-dotenv.config(); // Charge les variables d'environnement du fichier .env
+dotenv.config();
 
 // Vérifier si MONGO_URI est défini
 if (!process.env.MONGO_URI) {
     console.error('Erreur: La variable d\'environnement MONGO_URI n\'est pas définie.');
-    process.exit(1); // Arrête l\'application si la variable essentielle manque
+    process.exit(1);
 }
 
 const app = express();
@@ -30,70 +28,34 @@ cloudinary.config({
     api_key: process.env.CLOUDINARY_API_KEY,
     api_secret: process.env.CLOUDINARY_API_SECRET
 });
-// Middleware pour parser les requêtes JSON
-app.use(express.json());
-// Servir les fichiers statiques du dossier 'uploads'
-// C'est nécessaire pour que le front-end puisse afficher les images
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
+app.use(express.json());
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Utilisation des routes
 app.use('/api/agents', agentRoutes);
-app.use('/api/merchants', merchantRoutes); // Utilise les routes de marchand
-
+app.use('/api/merchants', merchantRoutes);
 
 app.get('/', (req, res) => {
     res.send('API Moov Money est en cours d\'exécution.');
 });
-// --- LE MIDDLEWARE D'ERREUR EST AJOUTÉ ICI ---
+
+// Middleware d'erreur
 app.use(errorHandler);
 
-// Database connection function
-let cachedDb = null;
+// Connectez-vous à la base de données une seule fois
+mongoose.connect(process.env.MONGO_URI)
+    .then(() => {
+        console.log('Connexion à MongoDB réussie !');
+    })
+    .catch((err) => {
+        console.error('Erreur de connexion à MongoDB', err);
+    });
 
-async function connectToDatabase() {
-  if (cachedDb) {
-    console.log('=> Using existing database connection');
-    return Promise.resolve(cachedDb);
-  }
-  console.log('=> Connecting to database...');
-  try {
-    const db = await mongoose.connect(process.env.MONGO_URI);
-    cachedDb = db;
-    console.log('=> New database connection established.');
-    return cachedDb;
-  } catch (error) {
-    console.error('Failed to connect to database:', error.message);
-    throw error;
-  }
-}
-
-
-// Middleware to ensure DB connection for every request in serverless environment
-app.use(async (req, res, next) => {
-    if (process.env.VERCEL_ENV) { // Only apply this for Vercel deployments
-        try {
-            await connectToDatabase();
-        } catch (error) {
-            console.error('Database connection failed in Vercel middleware:', error.message);
-            return res.status(500).send('Database connection error. Please check server logs.');
-        }
-    }
-    next();
-});
-
-// Export de l'application pour les tests et Vercel
+// Export de l'application pour Vercel
 module.exports = app;
 
 // Démarrage du serveur si le fichier est exécuté directement (pour le développement local)
 if (require.main === module) {
-    connectToDatabase()
-        .then(() => {
-            app.listen(PORT, () => console.log(`Serveur en cours d\'exécution sur le port ${PORT}`));
-            console.log('Connexion à MongoDB réussie !');
-        })
-        .catch((err) => {
-            console.error('Erreur de connexion à MongoDB', err);
-        });
-
+    app.listen(PORT, () => console.log(`Serveur en cours d\'exécution sur le port ${PORT}`));
 }
