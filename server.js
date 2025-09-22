@@ -62,9 +62,7 @@ async function connectToDatabase() {
             socketTimeoutMS: 60000, // Increased to 60 seconds for debugging
             connectTimeoutMS: 30000, // Added connect timeout
             heartbeatFrequencyMS: 10000, // Added heartbeat frequency
-            bufferCommands: false, // Disable Mongoose buffering
-            bufferMaxEntries: 0 // Ensure no commands are buffered
-        });
+            bufferCommands: false // Disable Mongoose buffering
         cachedDb = db;
         console.log('=> New database connection established.');
 
