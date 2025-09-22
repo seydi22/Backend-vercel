@@ -11,6 +11,11 @@ const { errorHandler } = require('./middleware/errorMiddleware');
 
 dotenv.config(); // Charge les variables d'environnement du fichier .env
 
+// Vérifier si MONGO_URI est défini
+if (!process.env.MONGO_URI) {
+    console.error('Erreur: La variable d\'environnement MONGO_URI n\'est pas définie.');
+    process.exit(1); // Arrête l\'application si la variable essentielle manque
+}
 
 const app = express();
 app.use(cors());
@@ -53,8 +58,10 @@ async function connectToDatabase() {
         const db = await mongoose.connect(process.env.MONGO_URI, {
             useNewUrlParser: true,
             useUnifiedTopology: true,
-            serverSelectionTimeoutMS: 5000, // Keep trying to send operations for 5 seconds
-            socketTimeoutMS: 45000, // Close sockets after 45 seconds of inactivity
+            serverSelectionTimeoutMS: 30000, // Increased to 30 seconds for debugging
+            socketTimeoutMS: 60000, // Increased to 60 seconds for debugging
+            connectTimeoutMS: 30000, // Added connect timeout
+            heartbeatFrequencyMS: 10000 // Added heartbeat frequency
         });
         cachedDb = db;
         console.log('=> New database connection established.');
