@@ -63,6 +63,16 @@ async function connectToDatabase() {
             connectTimeoutMS: 30000, // Added connect timeout
             heartbeatFrequencyMS: 10000, // Added heartbeat frequency
             bufferCommands: false // Disable Mongoose buffering
+        }); // <--- Corrected syntax: closing brace for options object
+        console.log('Mongoose connection options:', {
+            useNewUrlParser: true,
+            useUnifiedTopology: true,
+            serverSelectionTimeoutMS: 30000,
+            socketTimeoutMS: 60000,
+            connectTimeoutMS: 30000,
+            heartbeatFrequencyMS: 10000,
+            bufferCommands: false
+        });
         cachedDb = db;
         console.log('=> New database connection established.');
 
