@@ -52,49 +52,22 @@ app.use(errorHandler);
 let cachedDb = null;
 
 async function connectToDatabase() {
-    if (cachedDb) {
-        console.log('=> Using existing database connection');
-        return Promise.resolve(cachedDb);
-    }
-
-    console.log('=> Connecting to database...');
-    try {
-        const db = await mongoose.connect(process.env.MONGO_URI, {
-            useNewUrlParser: true,
-            useUnifiedTopology: true,
-            serverSelectionTimeoutMS: 30000, // Increased to 30 seconds for debugging
-            socketTimeoutMS: 60000, // Increased to 60 seconds for debugging
-            connectTimeoutMS: 30000, // Added connect timeout
-            heartbeatFrequencyMS: 10000, // Added heartbeat frequency
-            bufferCommands: false // Disable Mongoose buffering
-        }); // <--- Corrected syntax: closing brace for options object
-        const connectionOptions = {
-            useNewUrlParser: true,
-            useUnifiedTopology: true,
-            serverSelectionTimeoutMS: 30000,
-            socketTimeoutMS: 60000,
-            connectTimeoutMS: 30000,
-            heartbeatFrequencyMS: 10000,
-            bufferCommands: false
-        };
-        console.log('>>> Vercel Debug: Mongoose connection options being used:', connectionOptions);
-        cachedDb = db;
-        console.log('=> New database connection established.');
-
-        mongoose.connection.on('error', err => {
-            console.error('Mongoose connection error:', err);
-        });
-
-        mongoose.connection.on('disconnected', () => {
-            console.warn('Mongoose disconnected from database.');
-        });
-
-        return cachedDb;
-    } catch (error) {
-        console.error('Failed to connect to database:', error.message);
-        throw error; // Re-throw the error to be caught by the main block
-    }
+  if (cachedDb) {
+    console.log('=> Using existing database connection');
+    return Promise.resolve(cachedDb);
+  }
+  console.log('=> Connecting to database...');
+  try {
+    const db = await mongoose.connect(process.env.MONGO_URI);
+    cachedDb = db;
+    console.log('=> New database connection established.');
+    return cachedDb;
+  } catch (error) {
+    console.error('Failed to connect to database:', error.message);
+    throw error;
+  }
 }
+
 
 // Middleware to ensure DB connection for every request in serverless environment
 app.use(async (req, res, next) => {
