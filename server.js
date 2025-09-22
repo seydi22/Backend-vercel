@@ -6,6 +6,17 @@ const agentRoutes = require('./routes/agentRoutes');
 const merchantRoutes = require('./routes/merchantRoutes'); // Importe les routes de marchand
 const path = require('path'); // Ajoutez le module 'path' pour servir les fichiers statiques
 const cloudinary = require('cloudinary').v2;
+// Unique identifier for this deployment version: 20250922_1530_VercelDebug
+console.log('>>> Vercel Debug: server.js loaded. Version 20250922_1530_VercelDebug <<<');
+
+const express = require('express');
+const mongoose = require('mongoose');
+const cors = require('cors'); // <-- Ajoutez cette ligne
+const dotenv = require('dotenv');
+const agentRoutes = require('./routes/agentRoutes'); 
+const merchantRoutes = require('./routes/merchantRoutes'); // Importe les routes de marchand
+const path = require('path'); // Ajoutez le module 'path' pour servir les fichiers statiques
+const cloudinary = require('cloudinary').v2;
 const { errorHandler } = require('./middleware/errorMiddleware');
 
 
@@ -64,7 +75,7 @@ async function connectToDatabase() {
             heartbeatFrequencyMS: 10000, // Added heartbeat frequency
             bufferCommands: false // Disable Mongoose buffering
         }); // <--- Corrected syntax: closing brace for options object
-        console.log('Mongoose connection options:', {
+        const connectionOptions = {
             useNewUrlParser: true,
             useUnifiedTopology: true,
             serverSelectionTimeoutMS: 30000,
@@ -72,7 +83,8 @@ async function connectToDatabase() {
             connectTimeoutMS: 30000,
             heartbeatFrequencyMS: 10000,
             bufferCommands: false
-        });
+        };
+        console.log('>>> Vercel Debug: Mongoose connection options being used:', connectionOptions);
         cachedDb = db;
         console.log('=> New database connection established.');
 
