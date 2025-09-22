@@ -77,7 +77,12 @@ async function connectToDatabase() {
 // Middleware to ensure DB connection for every request in serverless environment
 app.use(async (req, res, next) => {
     if (process.env.VERCEL_ENV) { // Only apply this for Vercel deployments
-        await connectToDatabase();
+        try {
+            await connectToDatabase();
+        } catch (error) {
+            console.error('Database connection failed in Vercel middleware:', error.message);
+            return res.status(500).send('Database connection error. Please check server logs.');
+        }
     }
     next();
 });
