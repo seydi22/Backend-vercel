@@ -9,14 +9,7 @@ const cloudinary = require('cloudinary').v2;
 // Unique identifier for this deployment version: 20250922_1530_VercelDebug
 console.log('>>> Vercel Debug: server.js loaded. Version 20250922_1530_VercelDebug <<<');
 
-const express = require('express');
-const mongoose = require('mongoose');
-const cors = require('cors'); // <-- Ajoutez cette ligne
-const dotenv = require('dotenv');
-const agentRoutes = require('./routes/agentRoutes'); 
-const merchantRoutes = require('./routes/merchantRoutes'); // Importe les routes de marchand
-const path = require('path'); // Ajoutez le module 'path' pour servir les fichiers statiques
-const cloudinary = require('cloudinary').v2;
+
 const { errorHandler } = require('./middleware/errorMiddleware');
 
 
