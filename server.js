@@ -6,7 +6,7 @@ const agentRoutes = require('./routes/agentRoutes');
 const merchantRoutes = require('./routes/merchantRoutes'); // Importe les routes de marchand
 const path = require('path'); // Ajoutez le module 'path' pour servir les fichiers statiques
 const cloudinary = require('cloudinary').v2;
-const { errorHandler } = require('./middleware/errorMiddleware'); // <-- Ajoutez cette ligne
+const { errorHandler } = require('./middleware/errorMiddleware');
 
 
 dotenv.config(); // Charge les variables d'environnement du fichier .env
@@ -38,14 +38,58 @@ app.get('/', (req, res) => {
 });
 // --- LE MIDDLEWARE D'ERREUR EST AJOUTÉ ICI ---
 app.use(errorHandler);
-// Export de l'application pour les tests
+
+// Database connection function
+let cachedDb = null;
+
+async function connectToDatabase() {
+    if (cachedDb) {
+        console.log('=> Using existing database connection');
+        return Promise.resolve(cachedDb);
+    }
+
+    console.log('=> Connecting to database...');
+    try {
+        const db = await mongoose.connect(process.env.MONGO_URI, {
+            useNewUrlParser: true,
+            useUnifiedTopology: true,
+            serverSelectionTimeoutMS: 5000, // Keep trying to send operations for 5 seconds
+            socketTimeoutMS: 45000, // Close sockets after 45 seconds of inactivity
+        });
+        cachedDb = db;
+        console.log('=> New database connection established.');
+
+        mongoose.connection.on('error', err => {
+            console.error('Mongoose connection error:', err);
+        });
+
+        mongoose.connection.on('disconnected', () => {
+            console.warn('Mongoose disconnected from database.');
+        });
+
+        return cachedDb;
+    } catch (error) {
+        console.error('Failed to connect to database:', error.message);
+        throw error; // Re-throw the error to be caught by the main block
+    }
+}
+
+// Middleware to ensure DB connection for every request in serverless environment
+app.use(async (req, res, next) => {
+    if (process.env.VERCEL_ENV) { // Only apply this for Vercel deployments
+        await connectToDatabase();
+    }
+    next();
+});
+
+// Export de l'application pour les tests et Vercel
 module.exports = app;
 
-// Démarrage du serveur si le fichier est exécuté directement
+// Démarrage du serveur si le fichier est exécuté directement (pour le développement local)
 if (require.main === module) {
-    mongoose.connect(process.env.MONGO_URI)
+    connectToDatabase()
         .then(() => {
-            app.listen(PORT, () => console.log(`Serveur en cours d'exécution sur le port ${PORT}`));
+            app.listen(PORT, () => console.log(`Serveur en cours d\'exécution sur le port ${PORT}`));
             console.log('Connexion à MongoDB réussie !');
         })
         .catch((err) => {
