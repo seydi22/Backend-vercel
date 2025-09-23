@@ -41,7 +41,7 @@ const merchantSchema = new mongoose.Schema({
     },
     photoEnseigneUrl: { type: String, required: true },
 
-    statut: { type: String, enum: ['en attente', 'validé', 'rejeté',], default: 'en attente' },
+    statut: { type: String, enum: ['en attente', 'validé_par_superviseur', 'validé', 'rejeté'], default: 'en attente' },
     agentRecruteurId: { type: mongoose.Schema.Types.ObjectId, ref: 'Agent' },
     createdAt: { type: Date, default: Date.now },
     validatedAt: { type: Date },

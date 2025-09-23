@@ -10,6 +10,7 @@ const roleMiddleware = require('../middleware/roleMiddleware'); // Importez le m
 const { check, validationResult } = require('express-validator'); // <-- LIGNE À AJOUTER
 const mongoose = require('mongoose'); // Added this as it was used in the login route console.log
 
+
 // Route pour enregistrer un nouvel agent (accessible uniquement par l'admin)
 router.post('/register', authMiddleware, roleMiddleware(['admin']), async (req, res) => {
     const { matricule, motDePasse, role, affiliation } = req.body;
@@ -341,4 +342,91 @@ router.get('/me', authMiddleware, async (req, res) => {
     res.json(agent);
 });
 
+
+// @route   GET /api/agents/export
+// @desc    Exporter tous les opérateurs au format Excel
+// @access  Private (Admin, Superviseur)
+router.get(
+    '/export',
+    [authMiddleware, roleMiddleware(['admin', 'superviseur'])],
+    async (req, res) => {
+        try {
+            // 1. Récupérer les marchands validés qui ont au moins un opérateur
+            const merchants = await Merchant.find({
+                statut: 'validé',
+                "operators.0": { "$exists": true }
+            }).lean();
+
+            if (!merchants || merchants.length === 0) {
+                return res.status(404).json({ msg: 'Aucun opérateur à exporter.' });
+            }
+
+            // 2. Préparer les données pour l'export
+            const exportData = [];
+            const headers = [
+                'Notification Language', 'Organization ShortCode', 'AuthenticationType', 'UserName', 'OperatorID',
+                'MSISDN', 'First Name', 'First Name Value', 'Middle Name', 'Middle Name Value', 'Last name',
+                'Last name Value', 'Date of Birth', 'Date of Birth Value', 'id1 type', 'id1 type value',
+                'ID 1 Number', 'ID 1 Number Value', 'Preferred Notification Channel', 'Preferred Notification Channel Value',
+                'Notification Receiving MSISDN', 'Notification Receiving MSISDN Value', 'Preferred Notification Language',
+                'Preferred Notification Language Value', 'Role ID'
+            ];
+
+            merchants.forEach(merchant => {
+                if (merchant.operators && merchant.operators.length > 0) {
+                    merchant.operators.forEach(op => {
+                        exportData.push({
+                            'Notification Language': 'fr',
+                            'Organization ShortCode': merchant.shortCode || '',
+                            'AuthenticationType': 'WEB',
+                            'UserName': '',
+                            'OperatorID': '',
+                            'MSISDN': op.telephone || '',
+                            'First Name': '[Personal Details][First Name]',
+                            'First Name Value': op.prenom || '',
+                            'Middle Name': '[Personal Details][Middle Name]',
+                            'Middle Name Value': '',
+                            'Last name': '[Personal Details][Last Name]',
+                            'Last name Value': op.nom || '',
+                            'Date of Birth': '[Personal Details][Date of Birth]',
+                            'Date of Birth Value': '',
+                            'id1 type': '[ID Details][ID Type]',
+                            'id1 type value': '01',
+                            'ID 1 Number': '[ID Details][ID Number]',
+                            'ID 1 Number Value': op.nni || '',
+                            'Preferred Notification Channel': '[Contact Details][Preferred Notification Channel]',
+                            'Preferred Notification Channel Value': '1001',
+                            'Notification Receiving MSISDN': '[Contact Details][Notification Receiving MSISDN]',
+                            'Notification Receiving MSISDN Value': op.telephone ? `222${op.telephone}` : '',
+                            'Preferred Notification Language': '[Contact Details][Preferred Notification Language]',
+                            'Preferred Notification Language Value': 'fr',
+                            'Role ID': '500000000000011509'
+                        });
+                    });
+                }
+            });
+
+            if (exportData.length === 0) {
+                return res.status(404).json({ msg: 'Aucun opérateur à exporter.' });
+            }
+
+            // 3. Création du fichier Excel
+            const workbook = xlsx.utils.book_new();
+            const worksheet = xlsx.utils.json_to_sheet(exportData, { header: headers, skipHeader: true });
+             // Ajouter les en-têtes manuellement à la première ligne
+            xlsx.utils.sheet_add_aoa(worksheet, [headers], { origin: 'A1' });
+
+            xlsx.utils.book_append_sheet(workbook, worksheet, 'Operateurs');
+
+            // 4. Envoi du fichier au client
+            const buffer = xlsx.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+            res.setHeader('Content-Disposition', 'attachment; filename="operateurs_export.xlsx"');
+            res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+            res.send(buffer);
+
+        } catch (error) {
+            console.error('Erreur export opérateurs:', error);
+            res.status(500).json({ msg: 'Erreur lors de l’export des opérateurs.' });
+        }
+    });
 module.exports = router;
