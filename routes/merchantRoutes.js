@@ -223,19 +223,14 @@ router.get(
     }
 );
 
-// Route pour obtenir les statistiques du tableau de bord du superviseur
+// Route pour obtenir les statistiques du tableau de bord
 router.get(
     '/dashboard-stats',
     [authMiddleware, roleMiddleware(['superviseur', 'admin'])],
     async (req, res) => {
         try {
-            const myAgents = await Agent.find({ superviseurId: req.user.id });
-            const agentIds = myAgents.map(agent => agent._id);
-
-            const stats = await Merchant.aggregate([
-                { $match: { agentRecruteurId: { $in: agentIds } } },
-                { $group: { _id: '$statut', count: { $sum: 1 } } }
-            ]);
+            let stats;
+            let responsePayload = {};
 
             const formattedStats = {
                 'en attente': 0,
@@ -243,19 +238,58 @@ router.get(
                 'validé': 0,
                 'rejeté': 0,
             };
-            stats.forEach(s => {
-                formattedStats[s._id] = s.count;
-            });
 
-            const pendingMerchants = await Merchant.find({
-                statut: 'en attente',
-                agentRecruteurId: { $in: agentIds }
-            }).select('-__v');
+            if (req.user.role === 'admin') {
+                // Pour l'admin, agréger sur tous les marchands
+                stats = await Merchant.aggregate([
+                    { $group: { _id: '$statut', count: { $sum: 1 } } }
+                ]);
+                
+                stats.forEach(s => {
+                    if (formattedStats.hasOwnProperty(s._id)) {
+                        formattedStats[s._id] = s.count;
+                    }
+                });
 
-            res.json({
-                stats: formattedStats,
-                pendingMerchants: pendingMerchants
-            });
+                const totalMerchants = await Merchant.countDocuments();
+                const totalAgents = await Agent.countDocuments();
+                
+                responsePayload = {
+                    stats: {
+                        ...formattedStats,
+                        total: totalMerchants,
+                    },
+                    totalAgents: totalAgents
+                };
+
+            } else { // Pour le superviseur
+                const myAgents = await Agent.find({ superviseurId: req.user.id });
+                const agentIds = myAgents.map(agent => agent._id);
+
+                stats = await Merchant.aggregate([
+                    { $match: { agentRecruteurId: { $in: agentIds } } },
+                    { $group: { _id: '$statut', count: { $sum: 1 } } }
+                ]);
+
+                stats.forEach(s => {
+                    if (formattedStats.hasOwnProperty(s._id)) {
+                        formattedStats[s._id] = s.count;
+                    }
+                });
+
+                const pendingMerchants = await Merchant.find({
+                    statut: 'en attente',
+                    agentRecruteurId: { $in: agentIds }
+                }).select('-__v');
+
+                responsePayload = {
+                    stats: formattedStats,
+                    pendingMerchants: pendingMerchants
+                };
+            }
+
+            res.json(responsePayload);
+
         } catch (err) {
             console.error(err.message);
             res.status(500).send('Erreur du serveur');
