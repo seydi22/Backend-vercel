@@ -125,7 +125,17 @@ router.get(
     [authMiddleware, roleMiddleware(['admin'])],
     async (req, res) => {
         try {
-            const merchants = await Merchant.find({ statut: 'validé' }).lean();
+            const { startDate, endDate } = req.query;
+            let filter = { statut: 'validé' };
+
+            if (startDate) {
+                filter.validatedAt = { ...filter.validatedAt, $gte: new Date(startDate) };
+            }
+            if (endDate) {
+                filter.validatedAt = { ...filter.validatedAt, $lte: new Date(endDate) };
+            }
+
+            const merchants = await Merchant.find(filter).lean();
             if (!merchants || merchants.length === 0) {
                 return res.status(404).json({ msg: 'Aucun marchand validé à exporter.' });
             }
@@ -574,10 +584,20 @@ router.get(
     [authMiddleware, roleMiddleware(['admin'])],
     async (req, res) => {
         try {
-            const merchants = await Merchant.find({
+            const { startDate, endDate } = req.query;
+            let filter = {
                 statut: 'validé',
                 "operators.0": { "$exists": true }
-            }).lean();
+            };
+
+            if (startDate) {
+                filter.validatedAt = { ...filter.validatedAt, $gte: new Date(startDate) };
+            }
+            if (endDate) {
+                filter.validatedAt = { ...filter.validatedAt, $lte: new Date(endDate) };
+            }
+
+            const merchants = await Merchant.find(filter).lean();
 
             if (!merchants || merchants.length === 0) {
                 return res.status(404).json({ msg: 'Aucun opérateur à exporter.' });
