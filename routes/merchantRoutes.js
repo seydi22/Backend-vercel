@@ -566,27 +566,6 @@ router.get(
         }
     }
 );
-
-// @route   GET /api/merchants/:id
-// @desc    Get a single merchant's details
-// @access  Private
-router.get(
-    '/:id',
-    authMiddleware,
-    async (req, res) => {
-        try {
-            const merchant = await Merchant.findById(req.params.id).select('-__v');
-            if (!merchant) {
-                return res.status(404).json({ msg: 'Marchand non trouvé.' });
-            }
-            res.json(merchant);
-        } catch (err) {
-            console.error(err.message);
-            res.status(500).send('Erreur du serveur');
-        }
-    }
-);
-
 // @route   GET /api/merchants/export-operators
 // @desc    Exporter tous les opérateurs au format Excel
 // @access  Private (Admin)
@@ -668,5 +647,27 @@ router.get(
         }
     }
 );
+
+
+// @route   GET /api/merchants/:id
+// @desc    Get a single merchant's details
+// @access  Private
+router.get(
+    '/:id',
+    authMiddleware,
+    async (req, res) => {
+        try {
+            const merchant = await Merchant.findById(req.params.id).select('-__v');
+            if (!merchant) {
+                return res.status(404).json({ msg: 'Marchand non trouvé.' });
+            }
+            res.json(merchant);
+        } catch (err) {
+            console.error(err.message);
+            res.status(500).send('Erreur du serveur');
+        }
+    }
+);
+
 
 module.exports = router;
