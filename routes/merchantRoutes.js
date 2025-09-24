@@ -653,8 +653,7 @@ router.get(
             }
 
             const workbook = xlsx.utils.book_new();
-            const worksheet = xlsx.utils.json_to_sheet(exportData, { header: headers, skipHeader: true });
-            xlsx.utils.sheet_add_aoa(worksheet, [headers], { origin: 'A1' });
+            const worksheet = xlsx.utils.json_to_sheet(exportData, { header: headers });
 
             xlsx.utils.book_append_sheet(workbook, worksheet, 'Operateurs');
 
