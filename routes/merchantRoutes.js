@@ -200,7 +200,7 @@ router.get(
 
 
 // @route   GET /api/merchants/all
-// @desc    Obtenir la liste de tous les marchands, tous statuts confondus
+// @desc    Obtenir la liste des marchands (filtrée pour l'admin)
 // @access  Private (Admin)
 router.get(
     '/all',
@@ -209,10 +209,22 @@ router.get(
         try {
             const { statut, search } = req.query;
 
-            const filter = {};
+            // L'admin ne doit voir que les marchands qui ont passé l'étape superviseur.
+            const filter = {
+                statut: { $in: ['validé_par_superviseur', 'validé'] }
+            };
+
+            // Si un statut est passé en query par l'admin, on s'assure qu'il est autorisé
             if (statut) {
-                filter.statut = statut;
+                if (filter.statut.$in.includes(statut)) {
+                    filter.statut = statut;
+                } else {
+                    // Si le statut demandé n'est pas autorisé pour un admin,
+                    // on retourne un tableau vide pour ne pas exposer d'autres données.
+                    return res.json([]);
+                }
             }
+            
             if (search) {
                 filter.$or = [
                     { nom: { $regex: search, $options: 'i' } },
