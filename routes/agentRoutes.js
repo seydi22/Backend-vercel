@@ -63,10 +63,13 @@ router.post('/login', async (req, res) => {
         };
 
         // 4. Générer le token JWT
+        const expiresInSeconds = 3600; // 1 heure
+        const expirationTime = Math.floor(Date.now() / 1000) + expiresInSeconds;
+
         jwt.sign(
             payload,
             process.env.JWT_SECRET,
-            { expiresIn: '1h' },
+            { expiresIn: expiresInSeconds },
             (err, token) => {
                 if (err) {
                     console.error(err);
@@ -80,7 +83,7 @@ router.post('/login', async (req, res) => {
                     affiliation: agent.affiliation,
                     // ... autres champs
                 };
-                res.json({ token, agent: agentSansMdp });
+                res.json({ token, agent: agentSansMdp, expiresIn: expirationTime });
             }
         );
 
