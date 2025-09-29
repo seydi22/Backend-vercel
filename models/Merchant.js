@@ -29,8 +29,8 @@ const merchantSchema = new mongoose.Schema({
     prenomGerant: { type: String, required: true },
     adresse: { type: String, required: true },
     contact: { type: String, required: true, unique: true },
-    nif: { type: String, unique: true, sparse: true },
-    rc: { type: String, unique: true, sparse: true },
+    nif: { type: String,  sparse: true },
+    rc: { type: String,  sparse: true },
     
     // Structure de la pièce d'identité plus flexible
     pieceIdentite: {
