@@ -67,7 +67,7 @@ router.post(
             nomGerant, prenomGerant, dateNaissanceGerant,
             lieuNaissanceGerant, numeroCompteMoov, adresse,
             contact, nif, rc, typePiece, longitude, latitude,
-            nomOperateur, prenomOperateur, nniOperateur, telephoneOperateur, 
+            operators // This should be a JSON string of the operators array
         } = req.body;
 
         const pieceIdentiteRectoUrl = req.files['pieceIdentiteRecto'] ? req.files['pieceIdentiteRecto'][0].path : null;
@@ -75,17 +75,20 @@ router.post(
         const photoPasseportUrl = req.files['photoPasseport'] ? req.files['photoPasseport'][0].path : null;
         const photoEnseigneUrl = req.files['photoEnseigne'] ? req.files['photoEnseigne'][0].path : null;
 
-        if (!nomOperateur || !prenomOperateur || !nniOperateur || !telephoneOperateur ) {
-            return res.status(400).json({ msg: "Toutes les informations de l'opérateur sont requises." });
+        let parsedOperators = [];
+        if (operators) {
+            try {
+                parsedOperators = JSON.parse(operators);
+            } catch (error) {
+                return res.status(400).json({ msg: "Le format des opérateurs est invalide." });
+            }
+        }
+
+        if (!Array.isArray(parsedOperators) || parsedOperators.length === 0) {
+            return res.status(400).json({ msg: "Au moins un opérateur est requis." });
         }
 
         try {
-            const newOperator = {  nom: nomOperateur,
-                prenom: prenomOperateur,
-                nni: nniOperateur,
-                telephone: telephoneOperateur,
-                };
-
             const newMerchant = new Merchant({
                 nom, secteur, typeCommerce, region, ville, commune,
                 nomGerant, prenomGerant, dateNaissanceGerant,
@@ -99,7 +102,7 @@ router.post(
                 },
                 photoEnseigneUrl,
                 agentRecruteurId: req.user.id,
-                operators: [newOperator]
+                operators: parsedOperators // Assign the array of operators
             });
 
             const merchant = await newMerchant.save();
@@ -114,6 +117,10 @@ router.post(
 
         } catch (err) {
             console.error(err.message);
+            // Handle unique constraint error for operators
+            if (err.code === 11000) {
+                return res.status(400).json({ msg: "Un opérateur avec ce NNI ou téléphone existe déjà." });
+            }
             res.status(500).send('Erreur du serveur.');
         }
     }
