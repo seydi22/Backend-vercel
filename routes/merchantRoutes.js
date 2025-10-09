@@ -631,9 +631,9 @@ router.get(
                         exportData.push({
                             'Notification Language': 'fr',
                             'Organization ShortCode': merchant.shortCode || '',
-                            'AuthenticationType': 'WEB',
+                            'AuthenticationType': 'HANDSET',
                             'UserName': '',
-                            'OperatorID': '',
+                            'OperatorID': op.telephone || '' ,
                             'MSISDN': op.telephone || '',
                             'First Name': '[Personal Details][First Name]',
                             'First Name Value': op.prenom || '',
