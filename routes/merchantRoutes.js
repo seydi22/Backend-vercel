@@ -418,7 +418,7 @@ router.post(
 // @access  Private (Admin)
 router.get(
     '/supervisors/performance',
-    [authMiddleware, roleMiddleware(['admin'])],
+    [authMiddleware, roleMiddleware(['admin','superviseur'])],
     async (req, res) => {
         try {
             const performanceData = await Merchant.aggregate([
