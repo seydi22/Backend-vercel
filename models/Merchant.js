@@ -48,6 +48,10 @@ const merchantSchema = new mongoose.Schema({
     rejectionReason: { type: String },
     shortCode: { type: String, unique: true, sparse: true },
 
+    // NOUVEAUX CHAMPS POUR LE SUIVI SUPERVISEUR
+    validatedBySupervisor: { type: mongoose.Schema.Types.ObjectId, ref: 'Agent' },
+    validatedBySupervisorAt: { type: Date },
+
     // Tableau pour stocker les opérateurs liés à ce marchand
     operators: [operatorSchema] 
 });

@@ -326,7 +326,7 @@ router.get(
     }
 );
 
-// --- NEW VALIDATION WORKFLOW ROUTES ---
+// --- MODIFIED VALIDATION WORKFLOW ROUTES ---
 
 // @route   POST /api/merchants/supervisor-validate/:id
 // @desc    Pre-validate a merchant (supervisor)
@@ -349,8 +349,12 @@ router.post(
                 return res.status(403).json({ msg: 'Action non autorisée. Vous ne pouvez valider que les marchands de vos agents.' });
             }
 
+            // Mise à jour des champs de validation
             merchant.statut = 'validé_par_superviseur';
+            merchant.validatedBySupervisor = req.user.id; // ID du superviseur
+            merchant.validatedBySupervisorAt = Date.now(); // Date de validation
             merchant.rejectionReason = ''; // Clear previous rejection reasons
+
             await merchant.save();
             res.json({ msg: 'Marchand pré-validé avec succès.', merchant });
         } catch (err) {
@@ -383,6 +387,7 @@ router.post(
                 newShortCode = incremented;
             }
 
+            // Mise à jour du statut sans écraser les données du superviseur
             merchant.shortCode = newShortCode;
             merchant.statut = 'validé';
             merchant.validatedAt = Date.now();
@@ -405,6 +410,65 @@ router.post(
         }
     }
 );
+
+// --- NEW SUPERVISOR PERFORMANCE ROUTE ---
+
+// @route   GET /api/supervisors/performance
+// @desc    Get a list of all supervisors with their validation counts
+// @access  Private (Admin)
+router.get(
+    '/supervisors/performance',
+    [authMiddleware, roleMiddleware(['admin'])],
+    async (req, res) => {
+        try {
+            const performanceData = await Merchant.aggregate([
+                {
+                    $match: {
+                        validatedBySupervisor: { $exists: true, $ne: null }
+                    }
+                },
+                {
+                    $group: {
+                        _id: '$validatedBySupervisor',
+                        validationCount: { $sum: 1 }
+                    }
+                },
+                {
+                    $lookup: {
+                        from: 'agents', // La collection des agents/superviseurs
+                        localField: '_id',
+                        foreignField: '_id',
+                        as: 'supervisorDetails'
+                    }
+                },
+                {
+                    $unwind: '$supervisorDetails'
+                },
+                {
+                    $project: {
+                        _id: 0,
+                        supervisorId: '$_id',
+                        supervisorName: '$supervisorDetails.nom', // ou le champ approprié comme 'username'
+                        supervisorMatricule: '$supervisorDetails.matricule',
+                        validationCount: 1
+                    }
+                },
+                {
+                    $sort: {
+                        validationCount: -1
+                    }
+                }
+            ]);
+
+            res.json(performanceData);
+
+        } catch (err) {
+            console.error("Erreur lors de la récupération de la performance des superviseurs:", err.message);
+            res.status(500).send('Erreur du serveur.');
+        }
+    }
+);
+
 
 // @route   POST /api/merchants/admin-reject/:id
 // @desc    Reject a pre-validated merchant (admin)
