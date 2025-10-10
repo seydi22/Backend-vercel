@@ -369,7 +369,7 @@ router.post(
 // @access  Private (Admin)
 router.post(
     '/admin-validate/:id',
-    [authMiddleware, roleMiddleware(['admin'])],
+    [authMiddleware, roleMiddleware(['admin','superviseur'])],
     async (req, res) => {
         try {
             const merchant = await Merchant.findById(req.params.id);
