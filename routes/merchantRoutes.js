@@ -411,6 +411,44 @@ router.post(
     }
 );
 
+// @route   GET /api/merchants/supervisors/me/performance
+// @desc    Get performance data for the logged-in supervisor
+// @access  Private (Superviseur)
+router.get(
+    '/supervisors/me/performance',
+    [authMiddleware, roleMiddleware(['superviseur'])],
+    async (req, res) => {
+        try {
+            const supervisorId = req.user.id;
+
+            // Get supervisor details
+            const supervisor = await Agent.findById(supervisorId).select('nom matricule');
+
+            if (!supervisor) {
+                return res.status(404).json({ msg: 'Superviseur non trouvé.' });
+            }
+
+            // Get validation count
+            const validationCount = await Merchant.countDocuments({
+                validatedBySupervisor: supervisorId
+            });
+
+            const performanceData = {
+                supervisorId: supervisor._id,
+                supervisorName: supervisor.nom,
+                supervisorMatricule: supervisor.matricule,
+                validationCount: validationCount
+            };
+
+            res.json(performanceData);
+
+        } catch (err) {
+            console.error("Erreur lors de la récupération de la performance du superviseur:", err.message);
+            res.status(500).send('Erreur du serveur.');
+        }
+    }
+);
+
 // --- NEW SUPERVISOR PERFORMANCE ROUTE ---
 
 // @route   GET /api/supervisors/performance
