@@ -21,7 +21,20 @@ if (!process.env.MONGO_URI) {
 }
 
 const app = express();
-app.use(cors());
+const corsOptions = {
+  origin: [
+    'https://moovmoney-admin.vercel.app',
+    'https://souscripteur-web.vercel.app',
+    'http://localhost:3000', // Port React/Next.js courant
+    'http://localhost:3001',
+    'http://localhost:5173'  // Port Vite courant
+  ],
+  methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-auth-token'],
+  optionsSuccessStatus: 204
+};
+
+app.use(cors(corsOptions));
 const PORT = process.env.PORT || 5000;
 
 cloudinary.config({
