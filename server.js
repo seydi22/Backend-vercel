@@ -4,6 +4,7 @@ const cors = require('cors');
 const dotenv = require('dotenv');
 const agentRoutes = require('./routes/agentRoutes');
 const merchantRoutes = require('./routes/merchantRoutes');
+const logRoutes = require('./routes/logRoutes');
 const path = require('path');
 const cloudinary = require('cloudinary').v2;
 
@@ -35,6 +36,7 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 // Utilisation des routes
 app.use('/api/agents', agentRoutes);
 app.use('/api/merchants', merchantRoutes);
+app.use('/api/logs', logRoutes);
 
 app.get('/', (req, res) => {
     res.send('API Moov Money est en cours d\'exécution.');
