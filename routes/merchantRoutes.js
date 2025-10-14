@@ -811,4 +811,50 @@ router.get(
 );
 
 
+
+// @route   PUT /api/merchants/:id
+// @desc    Mettre à jour un marchand rejeté et le re-soumettre
+// @access  Private (Agent)
+router.put(
+    '/:id',
+    [authMiddleware, roleMiddleware(['agent'])],
+    async (req, res) => {
+        try {
+            const merchant = await Merchant.findById(req.params.id);
+
+            if (!merchant) {
+                return res.status(404).json({ msg: 'Marchand non trouvé.' });
+            }
+
+            // Vérifier que l'agent qui modifie est bien l'agent recruteur
+            if (merchant.agentRecruteurId.toString() !== req.user.id) {
+                return res.status(403).json({ msg: 'Action non autorisée. Vous ne pouvez modifier que vos propres marchands.' });
+            }
+
+            // Seuls les marchands avec le statut "rejeté" peuvent être modifiés.
+            if (merchant.statut !== 'rejeté') {
+                return res.status(403).json({ msg: 'Ce marchand ne peut pas être modifié car il n\'est pas au statut rejeté.' });
+            }
+
+            // Mettre à jour les champs depuis le body de la requête
+            // Cela met à jour tous les champs fournis dans req.body
+            Object.assign(merchant, req.body);
+
+            // Mettre à jour les champs de suivi et le statut
+            merchant.lastModifiedBy = req.user.id;
+            merchant.lastModifiedAt = Date.now();
+            merchant.statut = 'en attente'; // Repasse automatiquement à "en attente"
+            merchant.rejectionReason = null; // Effacer l'ancienne raison du rejet
+
+            await merchant.save();
+
+            res.json({ msg: 'Marchand mis à jour et re-soumis pour validation.' });
+
+        } catch (err) {
+            console.error(err.message);
+            res.status(500).send('Erreur du serveur.');
+        }
+    }
+);
+
 module.exports = router;

@@ -46,6 +46,8 @@ const merchantSchema = new mongoose.Schema({
     createdAt: { type: Date, default: Date.now },
     validatedAt: { type: Date },
     rejectionReason: { type: String },
+    lastModifiedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'Agent' },
+    lastModifiedAt: { type: Date },
     shortCode: { type: String, unique: true, sparse: true },
 
     // NOUVEAUX CHAMPS POUR LE SUIVI SUPERVISEUR
