@@ -833,7 +833,12 @@ router.put(
 
             // Seuls les marchands avec le statut "rejeté" peuvent être modifiés.
             if (merchant.statut !== 'rejeté') {
-                return res.status(403).json({ msg: 'Ce marchand ne peut pas être modifié car il n\'est pas au statut rejeté.' });
+                return res.status(403).json({ msg: "Ce marchand ne peut pas être modifié car il n'est pas au statut rejeté." });
+            }
+
+            // Vérifier que le corps de la requête n'est pas vide
+            if (!req.body || Object.keys(req.body).length === 0) {
+                return res.status(400).json({ msg: 'Aucune donnée de mise à jour fournie. Assurez-vous que la requête a un corps JSON non vide.' });
             }
 
             // Mettre à jour les champs depuis le body de la requête
