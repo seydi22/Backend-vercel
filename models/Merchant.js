@@ -7,7 +7,6 @@ const operatorSchema = new mongoose.Schema({
     prenom: { type: String, required: true },
     nni: { type: String, required: true, unique: true },
     telephone: { type: String, required: true, unique: true },
-   
     shortCode: { type: String },
     createdAt: { type: Date, default: Date.now }
 });
@@ -17,14 +16,12 @@ const merchantSchema = new mongoose.Schema({
     secteur: { type: String, required: true },
     typeCommerce: { type: String, required: true },
     
-    // Nouveaux champs de localisation
     region: { type: String, required: true },
     ville: { type: String, required: true },
     commune: { type: String, required: true },
     longitude: { type: Number },
     latitude: { type: Number },
 
-    // Nouveaux champs pour les informations du gérant
     nomGerant: { type: String, required: true },
     prenomGerant: { type: String, required: true },
     adresse: { type: String, required: true },
@@ -32,7 +29,6 @@ const merchantSchema = new mongoose.Schema({
     nif: { type: String,  sparse: true },
     rc: { type: String,  sparse: true },
     
-    // Structure de la pièce d'identité plus flexible
     pieceIdentite: {
         type: { type: String, enum: ['cni', 'carte de sejour', 'passeport'] },
         cniRectoUrl: { type: String },
@@ -41,18 +37,26 @@ const merchantSchema = new mongoose.Schema({
     },
     photoEnseigneUrl: { type: String, required: true },
 
-    statut: { type: String, enum: ['en attente', 'validé_par_superviseur', 'validé', 'rejeté'], default: 'en attente' },
-    agentRecruteurId: { type: mongoose.Schema.Types.ObjectId, ref: 'Agent' },
-    createdAt: { type: Date, default: Date.now },
-    validatedAt: { type: Date },
-    rejectionReason: { type: String },
-    shortCode: { type: String, unique: true, sparse: true },
+    statut: { 
+        type: String, 
+        enum: ['pending', 'validated_pre', 'validated_final', 'rejected'], 
+        default: 'pending' 
+    },
+    rejectionReason: { type: String, default: null },
 
-    // NOUVEAUX CHAMPS POUR LE SUIVI SUPERVISEUR
+    agentRecruteurId: { type: mongoose.Schema.Types.ObjectId, ref: 'Agent' },
+    
     validatedBySupervisor: { type: mongoose.Schema.Types.ObjectId, ref: 'Agent' },
     validatedBySupervisorAt: { type: Date },
+    
+    lastModifiedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'Agent' },
+    lastModifiedAt: { type: Date },
 
-    // Tableau pour stocker les opérateurs liés à ce marchand
+    createdAt: { type: Date, default: Date.now },
+    validatedAt: { type: Date },
+    
+    shortCode: { type: String, unique: true, sparse: true },
+
     operators: [operatorSchema] 
 });
 

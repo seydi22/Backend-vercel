@@ -79,7 +79,7 @@ router.post('/login', async (req, res) => {
 
                 // Log l'action de connexion
                 req.user = { matricule: agent.matricule, role: agent.role }; // Attacher manuellement les infos utilisateur pour le logger
-                await logAction(req, `Connexion réussie pour l'agent ${agent.matricule}`);
+                await logAction(req, `Connexion réussie pour ${agent.matricule}`);
 
                 // Optionnel: renvoyer un objet agent sans mot de passe
                 const agentSansMdp = {

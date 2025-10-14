@@ -790,6 +790,19 @@ router.get(
 );
 
 
+const merchantController = require('../controllers/merchantController');
+
+
+// @route   PUT /api/merchants/:id
+// @desc    Update a rejected merchant and resubmit
+// @access  Private (Agent)
+router.put(
+    '/:id',
+    [authMiddleware, roleMiddleware(['agent'])],
+    merchantController.updateRejectedMerchant
+);
+
+
 // @route   GET /api/merchants/:id
 // @desc    Get a single merchant's details
 // @access  Private
