@@ -847,6 +847,15 @@ router.put(
                 return res.status(403).json({ msg: "Ce marchand ne peut pas être modifié car il n'est pas au statut rejeté." });
             }
 
+            // Handle operators update
+            if (req.body.operators && typeof req.body.operators === 'string') {
+                try {
+                    req.body.operators = JSON.parse(req.body.operators);
+                } catch (error) {
+                    return res.status(400).json({ msg: "Le format des opérateurs est invalide." });
+                }
+            }
+
             // Mettre à jour les champs textuels depuis le body de la requête
             Object.assign(merchant, req.body);
 
