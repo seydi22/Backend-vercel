@@ -818,8 +818,19 @@ router.get(
 router.put(
     '/:id',
     [authMiddleware, roleMiddleware(['agent'])],
+    upload.fields([
+        { name: 'pieceIdentiteRecto', maxCount: 1 },
+        { name: 'pieceIdentiteVerso', maxCount: 1 },
+        { name: 'photoPasseport', maxCount: 1 },
+        { name: 'photoEnseigne', maxCount: 1 }
+    ]),
     async (req, res) => {
         try {
+            // Vérifier si des données ont été envoyées
+            if ((!req.body || Object.keys(req.body).length === 0) && (!req.files || Object.keys(req.files).length === 0)) {
+                return res.status(400).json({ msg: 'Aucune donnée de mise à jour fournie.' });
+            }
+
             const merchant = await Merchant.findById(req.params.id);
 
             if (!merchant) {
@@ -836,14 +847,29 @@ router.put(
                 return res.status(403).json({ msg: "Ce marchand ne peut pas être modifié car il n'est pas au statut rejeté." });
             }
 
-            // Vérifier que le corps de la requête n'est pas vide
-            if (!req.body || Object.keys(req.body).length === 0) {
-                return res.status(400).json({ msg: 'Aucune donnée de mise à jour fournie. Assurez-vous que la requête a un corps JSON non vide.' });
-            }
-
-            // Mettre à jour les champs depuis le body de la requête
-            // Cela met à jour tous les champs fournis dans req.body
+            // Mettre à jour les champs textuels depuis le body de la requête
             Object.assign(merchant, req.body);
+
+            // Mettre à jour les images si de nouveaux fichiers sont uploadés
+            if (req.files) {
+                if (req.files['pieceIdentiteRecto']) {
+                    merchant.pieceIdentite.cniRectoUrl = req.files['pieceIdentiteRecto'][0].path;
+                }
+                if (req.files['pieceIdentiteVerso']) {
+                    merchant.pieceIdentite.cniVersoUrl = req.files['pieceIdentiteVerso'][0].path;
+                }
+                if (req.files['photoPasseport']) {
+                    merchant.pieceIdentite.passeportUrl = req.files['photoPasseport'][0].path;
+                }
+                if (req.files['photoEnseigne']) {
+                    merchant.photoEnseigneUrl = req.files['photoEnseigne'][0].path;
+                }
+            }
+            
+            // Mettre à jour le type de pièce si fourni
+            if (req.body.typePiece) {
+                merchant.pieceIdentite.type = req.body.typePiece;
+            }
 
             // Mettre à jour les champs de suivi et le statut
             merchant.lastModifiedBy = req.user.id;
