@@ -725,13 +725,20 @@ router.get(
             }
 
             const exportData = [];
+            // CORRECTION: L'ordre des headers a été ajusté pour correspondre au template.
+            // Le bloc Notification est désormais placé AVANT le bloc ID.
             const headers = [
                 'Notification Language', 'Organization ShortCode', 'AuthenticationType', 'UserName', 'OperatorID',
                 'MSISDN', 'First Name', 'First Name Value', 'Middle Name', 'Middle Name Value', 'Last name',
-                'Last name Value', 'Date of Birth', 'Date of Birth Value', 'id1 type', 'id1 type value',
-                'ID 1 Number', 'ID 1 Number Value', 'Preferred Notification Channel', 'Preferred Notification Channel Value',
-                'Notification Receiving MSISDN', 'Notification Receiving MSISDN Value', 'Preferred Notification Language',
-                'Preferred Notification Language Value', 'Role ID'
+                'Last name Value', 'Date of Birth', 'Date of Birth Value',
+                // Bloc de colonnes Notification (DOIT ÊTRE AVANT les IDs)
+                'Preferred Notification Channel', 'Preferred Notification Channel Value',
+                'Notification Receiving MSISDN', 'Notification Receiving MSISDN Value',
+                'Preferred Notification Language', 'Preferred Notification Language Value',
+                // Bloc de colonnes ID (DOIT ÊTRE APRÈS les Notifications)
+                'ID 1 Type', 'ID 1 Type Value',
+                'ID 1 Number', 'ID 1 Number Value',
+                'Role ID'
             ];
 
             merchants.forEach(merchant => {
@@ -752,16 +759,19 @@ router.get(
                             'Last name Value': op.nom || '',
                             'Date of Birth': '[Personal Details][Date of Birth]',
                             'Date of Birth Value': '',
-                            'id1 type': '[ID Details][ID Type]',
-                            'id1 type value': '01',
-                            'ID 1 Number': '[ID Details][ID Number]',
-                            'ID 1 Number Value': op.nni || '',
+                            // CORRECTION: Interversion des blocs de données pour correspondre à l'ordre des headers
+                            // Bloc Notification
                             'Preferred Notification Channel': '[Contact Details][Preferred Notification Channel]',
                             'Preferred Notification Channel Value': '1001',
                             'Notification Receiving MSISDN': '[Contact Details][Notification Receiving MSISDN]',
                             'Notification Receiving MSISDN Value': op.telephone ? `222${op.telephone}` : '',
                             'Preferred Notification Language': '[Contact Details][Preferred Notification Language]',
                             'Preferred Notification Language Value': 'fr',
+                            // Bloc ID
+                            'ID 1 Type': '[ID Details][ID Type]',
+                            'ID 1 Type Value': '01',
+                            'ID 1 Number': '[ID Details][ID Number]',
+                            'ID 1 Number Value': op.nni || '',
                             'Role ID': '500000000000011509'
                         });
                     });
@@ -773,6 +783,7 @@ router.get(
             }
 
             const workbook = xlsx.utils.book_new();
+            // L'ordre des colonnes est garanti par le tableau `headers`
             const worksheet = xlsx.utils.json_to_sheet(exportData, { header: headers });
 
             xlsx.utils.book_append_sheet(workbook, worksheet, 'Operateurs');
@@ -788,7 +799,6 @@ router.get(
         }
     }
 );
-
 
 // @route   GET /api/merchants/:id
 // @desc    Get a single merchant's details
