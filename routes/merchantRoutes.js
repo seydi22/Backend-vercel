@@ -214,7 +214,7 @@ router.get(
     [authMiddleware, roleMiddleware(['admin'])],
     async (req, res) => {
         try {
-            const { statut, search } = req.query;
+            const { statut, search, agentId, sortBy, sortOrder } = req.query;
 
             // L'admin ne doit voir que les marchands qui ont passé l'étape superviseur.
             const filter = {
@@ -240,8 +240,18 @@ router.get(
                 ];
             }
 
+            if (agentId) {
+                filter.agentRecruteurId = agentId;
+            }
+
+            let sort = {};
+            if (sortBy) {
+                sort[sortBy] = sortOrder === 'desc' ? -1 : 1;
+            }
+
             const merchants = await Merchant.find(filter)
                 .populate('agentRecruteurId', 'matricule')
+                .sort(sort)
                 .select('-documents');
 
             res.json(merchants);
