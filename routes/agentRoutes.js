@@ -210,6 +210,36 @@ router.post(
 );
 
 
+// @route   PUT /api/agents/change-password
+// @desc    Modifier le mot de passe de l'agent connecté
+// @access  Private
+router.put('/change-password', authMiddleware, async (req, res) => {
+    const { ancienMotDePasse, nouveauMotDePasse } = req.body;
+    const agentId = req.user.id;
+
+    try {
+        const agent = await Agent.findById(agentId).select('+motDePasse');
+        if (!agent) {
+            return res.status(404).json({ msg: 'Agent non trouvé.' });
+        }
+
+        const isMatch = await agent.matchPassword(ancienMotDePasse);
+        if (!isMatch) {
+            return res.status(400).json({ msg: "L'ancien mot de passe est incorrect." });
+        }
+
+        const salt = await bcrypt.genSalt(10);
+        agent.motDePasse = await bcrypt.hash(nouveauMotDePasse, salt);
+
+        await agent.save();
+
+        res.json({ msg: 'Mot de passe mis à jour avec succès.' });
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).send('Erreur du serveur.');
+    }
+});
+
 // @route   PUT /api/agents/:id
 // @desc    Modifier un agent (uniquement par superviseur/admin)
 // @access  Private
@@ -349,36 +379,6 @@ router.get('/me', authMiddleware, async (req, res) => {
     // req.user contient l'objet décodé par le middleware
     const agent = await Agent.findById(req.user.id).select('-motDePasse');
     res.json(agent);
-});
-
-// @route   PUT /api/agents/change-password
-// @desc    Modifier le mot de passe de l'agent connecté
-// @access  Private
-router.put('/change-password', authMiddleware, async (req, res) => {
-    const { ancienMotDePasse, nouveauMotDePasse } = req.body;
-    const agentId = req.user.id;
-
-    try {
-        const agent = await Agent.findById(agentId).select('+motDePasse');
-        if (!agent) {
-            return res.status(404).json({ msg: 'Agent non trouvé.' });
-        }
-
-        const isMatch = await agent.matchPassword(ancienMotDePasse);
-        if (!isMatch) {
-            return res.status(400).json({ msg: "L'ancien mot de passe est incorrect." });
-        }
-
-        const salt = await bcrypt.genSalt(10);
-        agent.motDePasse = await bcrypt.hash(nouveauMotDePasse, salt);
-
-        await agent.save();
-
-        res.json({ msg: 'Mot de passe mis à jour avec succès.' });
-    } catch (err) {
-        console.error(err.message);
-        res.status(500).send('Erreur du serveur.');
-    }
 });
 
 

@@ -12,9 +12,6 @@ module.exports = function (req, res, next) {
     }
 
     try {
-        // Ajout d'un log pour déboguer
-        console.log('JWT_SECRET in authMiddleware:', process.env.JWT_SECRET);
-
         // Vérifie et décode le token
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
