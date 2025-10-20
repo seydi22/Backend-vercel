@@ -804,6 +804,26 @@ router.get(
         }
     }
 );
+// @route   GET /api/merchants/localisation
+// @desc    Récupérer les coordonnées GPS de tous les marchands actifs
+// @access  Public
+router.get('/localisation', async (req, res) => {
+    try {
+        const merchants = await Merchant.find({ statut: 'validé' }).select('_id nom latitude longitude');
+
+        const locations = merchants.map(merchant => ({
+            id: merchant._id,
+            nom: merchant.nom,
+            lat: merchant.latitude,
+            lng: merchant.longitude
+        }));
+
+        res.json(locations);
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).send('Erreur du serveur.');
+    }
+});
 
 
 // @route   GET /api/merchants/:id
@@ -914,25 +934,6 @@ router.put(
 );
 
 
-// @route   GET /api/merchants/localisation
-// @desc    Récupérer les coordonnées GPS de tous les marchands actifs
-// @access  Public
-router.get('/localisation', async (req, res) => {
-    try {
-        const merchants = await Merchant.find({ statut: 'validé' }).select('_id nom latitude longitude');
 
-        const locations = merchants.map(merchant => ({
-            id: merchant._id,
-            nom: merchant.nom,
-            lat: merchant.latitude,
-            lng: merchant.longitude
-        }));
-
-        res.json(locations);
-    } catch (err) {
-        console.error(err.message);
-        res.status(500).send('Erreur du serveur.');
-    }
-});
 
 module.exports = router;
