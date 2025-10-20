@@ -48,28 +48,31 @@ router.get(
                 })
                 .sort({ createdAt: -1 });
 
-            const allAgents = await Agent.find().populate('superviseurId', 'matricule nom');
+            const allAgents = await Agent.find({ role: { $nin: ['admin', 'superviseur'] } }).populate('superviseurId', 'matricule nom');
 
             // 2. Data Processing
             const agentPerformance = {};
             const teamPerformance = {};
 
             allAgents.forEach(agent => {
-                const teamName = agent.superviseurId ? agent.superviseurId.matricule : 'No Team';
-                if (!teamPerformance[teamName]) {
-                    teamPerformance[teamName] = {
-                        supervisor: agent.superviseurId ? agent.superviseurId.nom : 'N/A',
-                        agents: new Set(),
-                        totalEnrollments: 0,
-                        valid: 0,
-                        rejected: 0,
-                        dailyActivity: {}
-                    };
+                const teamName = agent.superviseurId ? agent.superviseurId.matricule : null;
+
+                if (teamName) {
+                    if (!teamPerformance[teamName]) {
+                        teamPerformance[teamName] = {
+                            supervisor: agent.superviseurId ? agent.superviseurId.nom : 'N/A',
+                            agents: new Set(),
+                            totalEnrollments: 0,
+                            valid: 0,
+                            rejected: 0,
+                            dailyActivity: {}
+                        };
+                    }
+                    teamPerformance[teamName].agents.add(agent._id.toString());
                 }
-                teamPerformance[teamName].agents.add(agent._id.toString());
 
                 agentPerformance[agent._id] = {
-                    team: teamName,
+                    team: teamName || 'Aucune Équipe',
                     agentName: agent.nom || agent.matricule,
                     agentId: agent.matricule,
                     total: 0,
@@ -96,14 +99,16 @@ router.get(
                     agent.activeDays.add(enrollmentDate.format('YYYY-MM-DD'));
                 }
 
-                const teamName = e.agentRecruteurId.superviseurId ? e.agentRecruteurId.superviseurId.matricule : 'No Team';
-                const team = teamPerformance[teamName];
-                if (team) {
-                    team.totalEnrollments++;
-                    if (e.statut === 'validé') team.valid++;
-                    if (e.statut === 'rejeté') team.rejected++;
-                    const day = moment(e.createdAt).format('YYYY-MM-DD');
-                    team.dailyActivity[day] = (team.dailyActivity[day] || 0) + 1;
+                const teamName = e.agentRecruteurId.superviseurId ? e.agentRecruteurId.superviseurId.matricule : null;
+                if (teamName) {
+                    const team = teamPerformance[teamName];
+                    if (team) {
+                        team.totalEnrollments++;
+                        if (e.statut === 'validé') team.valid++;
+                        if (e.statut === 'rejeté') team.rejected++;
+                        const day = moment(e.createdAt).format('YYYY-MM-DD');
+                        team.dailyActivity[day] = (team.dailyActivity[day] || 0) + 1;
+                    }
                 }
             });
 
@@ -221,7 +226,7 @@ router.get(
 
             enrollments.forEach(e => {
                 detailSheet.addRow([
-                    e.agentRecruteurId.superviseurId ? e.agentRecruteurId.superviseurId.matricule : 'No Team',
+                    e.agentRecruteurId.superviseurId ? e.agentRecruteurId.superviseurId.matricule : 'Aucune Équipe',
                     e.agentRecruteurId.nom || e.agentRecruteurId.matricule,
                     e.nom,
                     e.contact,
