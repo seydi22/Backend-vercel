@@ -809,13 +809,17 @@ router.get(
 // @access  Public
 router.get('/localisation', async (req, res) => {
     try {
-        const merchants = await Merchant.find({ statut: 'validé' }).select('_id nom latitude longitude');
+        const merchants = await Merchant.find({ statut: 'validé' })
+            .select('_id nom latitude longitude statut agentRecruteurId')
+            .populate('agentRecruteurId', 'matricule');
 
         const locations = merchants.map(merchant => ({
             id: merchant._id,
             nom: merchant.nom,
             lat: merchant.latitude,
-            lng: merchant.longitude
+            lng: merchant.longitude,
+            statut: merchant.statut,
+            matricule: merchant.agentRecruteurId ? merchant.agentRecruteurId.matricule : 'N/A'
         }));
 
         res.json(locations);
