@@ -1,4 +1,3 @@
-
 // backend/routes/exportRoutes.js
 
 const express = require('express');
@@ -9,6 +8,7 @@ const Merchant = require('../models/Merchant');
 const Agent = require('../models/Agent');
 const authMiddleware = require('../middleware/authMiddleware');
 const roleMiddleware = require('../middleware/roleMiddleware');
+const crypto = require('crypto');
 
 // @route   GET /api/export/performance
 // @desc    Export agent and team performance to Excel
@@ -48,7 +48,7 @@ router.get(
                 })
                 .sort({ createdAt: -1 });
 
-            const allAgents = await Agent.find({ role: { $nin: ['admin', 'superviseur'] } }).populate('superviseurId', 'matricule nom');
+            const allAgents = await Agent.find({ role: 'agent' }).populate('superviseurId', 'matricule nom');
 
             // 2. Data Processing
             const agentPerformance = {};
@@ -123,8 +123,9 @@ router.get(
             summarySheet.addRow([]);
             summarySheet.addRow(['Statistiques Globales']);
             summarySheet.getCell('A3').font = { bold: true, size: 14 };
+            const totalEquipes = await Agent.countDocuments({ role: 'superviseur' });
             summarySheet.addRow(['Total Enrôlements', enrollments.length]);
-            summarySheet.addRow(['Total Équipes', Object.keys(teamPerformance).length]);
+            summarySheet.addRow(['Total Équipes', totalEquipes]);
             summarySheet.addRow(['Total Agents', allAgents.length]);
             const totalValid = enrollments.filter(e => e.statut === 'validé').length;
             const totalRate = enrollments.length > 0 ? (totalValid / enrollments.length) * 100 : 0;
@@ -256,8 +257,10 @@ router.get(
             };
 
             // 4. HTTP Response
-            const timestamp = moment().format('YYYYMMDD_HHmm');
-            const filename = `performances_agents_${timestamp}.xlsx`;
+            const date = moment().format('YYYYMMDD');
+            const time = moment().format('HHmm');
+            const uniqueID = crypto.randomBytes(3).toString('hex');
+            const filename = `export_performances_${date}_${time}_${uniqueID}.xlsx`;
             res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
             res.setHeader('Content-Disposition', `attachment; filename=${filename}`);
 

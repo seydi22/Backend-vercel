@@ -10,6 +10,9 @@ const roleMiddleware = require('../middleware/roleMiddleware'); // Importez le m
 const { check, validationResult } = require('express-validator'); // <-- LIGNE À AJOUTER
 const mongoose = require('mongoose'); // Added this as it was used in the login route console.log
 const { logAction } = require('../middleware/logger'); // Importation du logger
+const moment = require('moment');
+const crypto = require('crypto');
+const xlsx = require('xlsx');
 
 
 // Route pour enregistrer un nouvel agent (accessible uniquement par l'admin)
@@ -211,7 +214,7 @@ router.post(
 
 
 // @route   PUT /api/agents/change-password
-// @desc    Modifier le mot de passe de l'agent connecté
+// @desc    Modifier le mot de passe de l\'agent connecté
 // @access  Private
 router.put('/change-password', authMiddleware, async (req, res) => {
     const { ancienMotDePasse, nouveauMotDePasse } = req.body;
@@ -260,7 +263,7 @@ router.put(
             }
 
             // --- NOUVELLE VÉRIFICATION DE SÉCURITÉ ---
-            // Un superviseur ne peut pas changer le rôle d'un agent en 'superviseur' ou 'admin'.
+            // Un superviseur ne peut pas changer le rôle d\'un agent en 'superviseur' ou 'admin'.
             if (req.user.role === 'superviseur' && (role === 'superviseur' || role === 'admin')) {
                 return res.status(403).json({ msg: 'Accès refusé : vous ne pouvez pas promouvoir un agent au rang de superviseur ou d\'administrateur.' });
             }
@@ -374,9 +377,9 @@ router.delete(
     }
 );
 
-// Route protégée pour récupérer les informations de l'agent connecté
+// Route protégée pour récupérer les informations de l\'agent connecté
 router.get('/me', authMiddleware, async (req, res) => {
-    // req.user contient l'objet décodé par le middleware
+    // req.user contient l\'objet décodé par le middleware
     const agent = await Agent.findById(req.user.id).select('-motDePasse');
     res.json(agent);
 });
@@ -400,7 +403,7 @@ router.get(
                 return res.status(404).json({ msg: 'Aucun opérateur à exporter.' });
             }
 
-            // 2. Préparer les données pour l'export
+            // 2. Préparer les données pour l\'export
             const exportData = [];
             const headers = [
                 'Notification Language', 'Organization ShortCode', 'AuthenticationType', 'UserName', 'OperatorID',
@@ -458,8 +461,12 @@ router.get(
             xlsx.utils.book_append_sheet(workbook, worksheet, 'Operateurs');
 
             // 4. Envoi du fichier au client
+            const date = moment().format('YYYYMMDD');
+            const time = moment().format('HHmm');
+            const uniqueID = crypto.randomBytes(3).toString('hex');
+            const filename = `export_operateurs_${date}_${time}_${uniqueID}.xlsx`;
             const buffer = xlsx.write(workbook, { type: 'buffer', bookType: 'xlsx' });
-            res.setHeader('Content-Disposition', 'attachment; filename="operateurs_export.xlsx"');
+            res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
             res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
             res.send(buffer);
 

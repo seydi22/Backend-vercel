@@ -11,6 +11,8 @@ const cloudinary = require('cloudinary').v2;
 const { CloudinaryStorage } = require('multer-storage-cloudinary');
 const { agent } = require('supertest');
 const xlsx = require('xlsx'); // <--- Assurez-vous que cette ligne est bien présente !
+const moment = require('moment');
+const crypto = require('crypto');
 
 
 // Configuration de Cloudinary
@@ -193,8 +195,12 @@ router.get(
             const worksheet = XLSX.utils.json_to_sheet(exportData, { header: headers });
             XLSX.utils.book_append_sheet(workbook, worksheet, 'Marchands');
 
+            const date = moment().format('YYYYMMDD');
+            const time = moment().format('HHmm');
+            const uniqueID = crypto.randomBytes(3).toString('hex');
+            const filename = `export_merchants_${date}_${time}_${uniqueID}.xlsx`;
             const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
-            res.setHeader('Content-Disposition', 'attachment; filename="merchants_export.xlsx"');
+            res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
             res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
             res.send(buffer);
 
