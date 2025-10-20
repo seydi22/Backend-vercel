@@ -775,7 +775,7 @@ router.get(
                             'Preferred Notification Channel': '[Contact Details][Preferred Notification Channel]',
                             'Preferred Notification Channel Value': '1001',
                             'Notification Receiving MSISDN': '[Contact Details][Notification Receiving MSISDN]',
-                            'Notification Receiving MSISDN Value': op.telephone ? `222${op.telephone}` : '',
+                            'Notification Receiving MSISDN Value': op.telephone || '',
                             'Preferred Notification Language': '[Contact Details][Preferred Notification Language]',
                             'Preferred Notification Language Value': 'fr',
                             'Role ID': '500000000000011413'
