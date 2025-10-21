@@ -5,17 +5,24 @@ const onFinished = require('on-finished');
 const getActionDescription = (method, url, status) => {
     const statusText = status >= 400 ? 'Échec' : 'Succès';
 
-    if (url.startsWith('/api/agents/login')) return `Connexion agent - ${statusText}`;
-    if (url.startsWith('/api/agents/register')) return `Enregistrement nouvel agent - ${statusText}`;
-    if (url.startsWith('/api/agents/change-password')) return `Changement de mot de passe - ${statusText}`;
-    if (method === 'POST' && url.startsWith('/api/merchants')) return `Création nouveau marchand - ${statusText}`;
-    if (method === 'PUT' && url.startsWith('/api/merchants')) return `Mise à jour marchand - ${statusText}`;
-    if (method === 'DELETE' && url.startsWith('/api/merchants')) return `Suppression marchand - ${statusText}`;
-    if (url.startsWith('/api/export/performance')) return `Exportation des performances - ${statusText}`;
-    if (url.startsWith('/api/agents/export')) return `Exportation des opérateurs - ${statusText}`;
+    // User login
+    if (url.startsWith('/api/agents/login')) return `Connexion - ${statusText}`;
 
-    // Fallback for other routes
-    return `${method} ${url} - ${statusText}`;
+    // Agent management
+    if (url.startsWith('/api/agents/register')) return `Création Agent - ${statusText}`;
+    if (method === 'POST' && url === '/api/agents') return `Création Agent - ${statusText}`;
+    if (url.startsWith('/api/agents/change-password')) return `Changement de mot de passe - ${statusText}`;
+
+    // Merchant management
+    if (method === 'POST' && url.startsWith('/api/merchants')) return `Création Marchand - ${statusText}`;
+    if (method === 'PUT' && url.startsWith('/api/merchants')) return `Mise à jour Marchand - ${statusText}`;
+    if (method === 'DELETE' && url.startsWith('/api/merchants')) return `Suppression Marchand - ${statusText}`;
+
+    // Exports
+    if (url.startsWith('/api/export/performance')) return `Export Performances - ${statusText}`;
+    if (url.startsWith('/api/agents/export')) return `Export Opérateurs - ${statusText}`;
+
+    return null; // Return null for actions we don't want to log
 };
 
 
@@ -23,12 +30,18 @@ const logMiddleware = (req, res, next) => {
   const start = Date.now();
 
   onFinished(res, async () => {
-    const duration = Date.now() - start;
     const { method, originalUrl, ip, headers } = req;
-    const userAgent = headers['user-agent'];
     const status = res.statusCode;
 
-    let matricule = 'Système'; // Default to 'Système' for actions without a user
+    const action = getActionDescription(method, originalUrl, status);
+
+    // Only log if the action is described
+    if (!action) {
+      return;
+    }
+
+    const userAgent = headers['user-agent'];
+    let matricule = 'Système';
     const token = headers['x-auth-token'];
 
     if (token) {
@@ -38,16 +51,9 @@ const logMiddleware = (req, res, next) => {
           matricule = decoded.user.matricule;
         }
       } catch (ex) {
-        // Invalid token, matricule remains 'Système'
+        // Invalid token
       }
     }
-
-    // Exclude logging of log-fetching requests
-    if (originalUrl.startsWith('/api/logs')) {
-      return;
-    }
-
-    const action = getActionDescription(method, originalUrl, status);
 
     try {
       const log = new Log({
