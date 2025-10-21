@@ -62,7 +62,8 @@ router.post('/login', async (req, res) => {
             user: {
                 id: agent.id,
                 role: agent.role,
-                affiliation: agent.affiliation
+                affiliation: agent.affiliation,
+                matricule: agent.matricule // Include matricule in the payload
             }
         };
 

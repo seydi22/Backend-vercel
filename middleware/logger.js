@@ -2,6 +2,23 @@ const Log = require('../models/Log');
 const jwt = require('jsonwebtoken');
 const onFinished = require('on-finished');
 
+const getActionDescription = (method, url, status) => {
+    const statusText = status >= 400 ? 'Échec' : 'Succès';
+
+    if (url.startsWith('/api/agents/login')) return `Connexion agent - ${statusText}`;
+    if (url.startsWith('/api/agents/register')) return `Enregistrement nouvel agent - ${statusText}`;
+    if (url.startsWith('/api/agents/change-password')) return `Changement de mot de passe - ${statusText}`;
+    if (method === 'POST' && url.startsWith('/api/merchants')) return `Création nouveau marchand - ${statusText}`;
+    if (method === 'PUT' && url.startsWith('/api/merchants')) return `Mise à jour marchand - ${statusText}`;
+    if (method === 'DELETE' && url.startsWith('/api/merchants')) return `Suppression marchand - ${statusText}`;
+    if (url.startsWith('/api/export/performance')) return `Exportation des performances - ${statusText}`;
+    if (url.startsWith('/api/agents/export')) return `Exportation des opérateurs - ${statusText}`;
+
+    // Fallback for other routes
+    return `${method} ${url} - ${statusText}`;
+};
+
+
 const logMiddleware = (req, res, next) => {
   const start = Date.now();
 
@@ -11,29 +28,26 @@ const logMiddleware = (req, res, next) => {
     const userAgent = headers['user-agent'];
     const status = res.statusCode;
 
-    let matricule = 'N/A';
+    let matricule = 'Système'; // Default to 'Système' for actions without a user
     const token = headers['x-auth-token'];
 
     if (token) {
       try {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        if (decoded && decoded.id) {
-          // Assuming the JWT payload has an 'id' field which is the user's ID
-          // And that you have a way to get the matricule from the user ID
-          // For now, let's assume the matricule is in the token
-          matricule = decoded.matricule || 'N/A';
+        if (decoded && decoded.user && decoded.user.matricule) {
+          matricule = decoded.user.matricule;
         }
       } catch (ex) {
-        // Invalid token, matricule remains 'N/A'
+        // Invalid token, matricule remains 'Système'
       }
     }
 
-    // Exclude logging of log-fetching requests to avoid infinite loops
+    // Exclude logging of log-fetching requests
     if (originalUrl.startsWith('/api/logs')) {
       return;
     }
 
-    const action = `${method} ${originalUrl} - ${status} [${duration}ms]`;
+    const action = getActionDescription(method, originalUrl, status);
 
     try {
       const log = new Log({
