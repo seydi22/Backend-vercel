@@ -219,11 +219,10 @@ router.get(
             detailSheet.getRow(1).getCell(1).font = { italic: true };
             detailSheet.addRow([]);
             const detailHeaders = [
-                'Équipe', 'Agent', 'Date Création', 'Statut', 'Nom Marchand', 'Secteur', 'Type Commerce',
+                'Short Code', 'Équipe', 'Agent', 'Date Création', 'Statut', 'Nom Marchand', 'Secteur', 'Type Commerce',
                 'Région', 'Ville', 'Commune', 'Adresse', 'Longitude', 'Latitude', 'Nom Gérant', 'Prénom Gérant',
                 'Contact Gérant', 'NIF', 'RC', 'Type Pièce', 'URL CNI Recto', 'URL CNI Verso', 'URL Passeport',
-                'URL Photo Enseigne', 'Date Validation', 'Raison Rejet', 'Short Code', 'Date Validation Superviseur',
-                'Opérateurs'
+                'URL Photo Enseigne', 'Date Validation', 'Raison Rejet', 'Date Validation Superviseur'
             ];
             const detailHeaderRow = detailSheet.addRow(detailHeaders);
             detailHeaderRow.eachCell(cell => {
@@ -233,6 +232,7 @@ router.get(
 
             enrollments.forEach(e => {
                 detailSheet.addRow([
+                    e.shortCode,
                     e.agentRecruteurId.superviseurId ? e.agentRecruteurId.superviseurId.matricule : 'Aucune Équipe',
                     e.agentRecruteurId.nom || e.agentRecruteurId.matricule,
                     moment(e.createdAt).format('YYYY-MM-DD HH:mm:ss'),
@@ -258,9 +258,7 @@ router.get(
                     e.photoEnseigneUrl,
                     e.validatedAt ? moment(e.validatedAt).format('YYYY-MM-DD HH:mm:ss') : '',
                     e.rejectionReason,
-                    e.shortCode,
-                    e.validatedBySupervisorAt ? moment(e.validatedBySupervisorAt).format('YYYY-MM-DD HH:mm:ss') : '',
-                    JSON.stringify(e.operators)
+                    e.validatedBySupervisorAt ? moment(e.validatedBySupervisorAt).format('YYYY-MM-DD HH:mm:ss') : ''
                 ]);
             });
             detailSheet.columns.forEach(column => {
@@ -279,6 +277,55 @@ router.get(
                 to: {
                     row: 3,
                     column: detailHeaders.length
+                }
+            };
+
+            // --- Operator Detail Sheet ---
+            const operatorSheet = workbook.addWorksheet('Détails Opérateurs');
+            operatorSheet.addRow(['Export généré le', new Date().toLocaleString()]);
+            operatorSheet.getRow(1).getCell(1).font = { italic: true };
+            operatorSheet.addRow([]);
+            const operatorHeaders = [
+                'Short Code Marchand', 'Nom Opérateur', 'Prénom Opérateur', 'NNI Opérateur',
+                'Téléphone Opérateur', 'Short Code Opérateur', 'Date Création Opérateur'
+            ];
+            const operatorHeaderRow = operatorSheet.addRow(operatorHeaders);
+            operatorHeaderRow.eachCell(cell => {
+                cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+                cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0070C0' } };
+            });
+
+            enrollments.forEach(e => {
+                if (e.operators && e.operators.length > 0) {
+                    e.operators.forEach(op => {
+                        operatorSheet.addRow([
+                            e.shortCode,
+                            op.nom,
+                            op.prenom,
+                            op.nni,
+                            op.telephone,
+                            op.shortCode,
+                            op.createdAt ? moment(op.createdAt).format('YYYY-MM-DD HH:mm:ss') : ''
+                        ]);
+                    });
+                }
+            });
+            operatorSheet.columns.forEach(column => {
+                let maxLength = 0;
+                column.eachCell({ includeEmpty: true }, cell => {
+                    let columnLength = cell.value ? cell.value.toString().length : 10;
+                    if (columnLength > maxLength) {
+                        maxLength = columnLength;
+                    }
+                });
+                column.width = maxLength < 10 ? 10 : maxLength + 2;
+            });
+            operatorSheet.views = [{ state: 'frozen', ySplit: 3 }];
+            operatorSheet.autoFilter = {
+                from: 'A3',
+                to: {
+                    row: 3,
+                    column: operatorHeaders.length
                 }
             };
 
