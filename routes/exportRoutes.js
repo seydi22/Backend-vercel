@@ -218,7 +218,13 @@ router.get(
             detailSheet.addRow(['Export généré le', new Date().toLocaleString()]);
             detailSheet.getRow(1).getCell(1).font = { italic: true };
             detailSheet.addRow([]);
-            const detailHeaders = ['Équipe', 'Agent', 'Marchand', 'Téléphone', 'Localité', 'Statut', 'Date', 'Source'];
+            const detailHeaders = [
+                'Équipe', 'Agent', 'Date Création', 'Statut', 'Nom Marchand', 'Secteur', 'Type Commerce',
+                'Région', 'Ville', 'Commune', 'Adresse', 'Longitude', 'Latitude', 'Nom Gérant', 'Prénom Gérant',
+                'Contact Gérant', 'NIF', 'RC', 'Type Pièce', 'URL CNI Recto', 'URL CNI Verso', 'URL Passeport',
+                'URL Photo Enseigne', 'Date Validation', 'Raison Rejet', 'Short Code', 'Date Validation Superviseur',
+                'Opérateurs'
+            ];
             const detailHeaderRow = detailSheet.addRow(detailHeaders);
             detailHeaderRow.eachCell(cell => {
                 cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
@@ -229,12 +235,32 @@ router.get(
                 detailSheet.addRow([
                     e.agentRecruteurId.superviseurId ? e.agentRecruteurId.superviseurId.matricule : 'Aucune Équipe',
                     e.agentRecruteurId.nom || e.agentRecruteurId.matricule,
-                    e.nom,
-                    e.contact,
-                    `${e.ville}, ${e.commune}`,
-                    e.statut,
                     moment(e.createdAt).format('YYYY-MM-DD HH:mm:ss'),
-                    'Mobile App' // Assuming source, can be dynamic if available
+                    e.statut,
+                    e.nom,
+                    e.secteur,
+                    e.typeCommerce,
+                    e.region,
+                    e.ville,
+                    e.commune,
+                    e.adresse,
+                    e.longitude,
+                    e.latitude,
+                    e.nomGerant,
+                    e.prenomGerant,
+                    e.contact,
+                    e.nif,
+                    e.rc,
+                    e.pieceIdentite ? e.pieceIdentite.type : '',
+                    e.pieceIdentite ? e.pieceIdentite.cniRectoUrl : '',
+                    e.pieceIdentite ? e.pieceIdentite.cniVersoUrl : '',
+                    e.pieceIdentite ? e.pieceIdentite.passeportUrl : '',
+                    e.photoEnseigneUrl,
+                    e.validatedAt ? moment(e.validatedAt).format('YYYY-MM-DD HH:mm:ss') : '',
+                    e.rejectionReason,
+                    e.shortCode,
+                    e.validatedBySupervisorAt ? moment(e.validatedBySupervisorAt).format('YYYY-MM-DD HH:mm:ss') : '',
+                    JSON.stringify(e.operators)
                 ]);
             });
             detailSheet.columns.forEach(column => {
