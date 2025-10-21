@@ -287,7 +287,7 @@ router.get(
             operatorSheet.addRow([]);
             const operatorHeaders = [
                 'Short Code Marchand', 'Nom Opérateur', 'Prénom Opérateur', 'NNI Opérateur',
-                'Téléphone Opérateur', 'Short Code Opérateur', 'Date Création Opérateur'
+                'Téléphone Opérateur', 'Date Création Opérateur'
             ];
             const operatorHeaderRow = operatorSheet.addRow(operatorHeaders);
             operatorHeaderRow.eachCell(cell => {
@@ -304,7 +304,6 @@ router.get(
                             op.prenom,
                             op.nni,
                             op.telephone,
-                            op.shortCode,
                             op.createdAt ? moment(op.createdAt).format('YYYY-MM-DD HH:mm:ss') : ''
                         ]);
                     });
