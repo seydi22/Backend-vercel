@@ -22,6 +22,13 @@ if (!process.env.MONGO_URI) {
 }
 
 const app = express();
+
+// Trust proxy to get the real IP address
+app.set('trust proxy', 1);
+
+const logMiddleware = require('./middleware/logger');
+app.use(logMiddleware);
+
 const corsOptions = {
   origin: [
     'https://moovmoney-admin.vercel.app',

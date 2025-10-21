@@ -9,7 +9,7 @@ const jwt = require('jsonwebtoken');
 const roleMiddleware = require('../middleware/roleMiddleware'); // Importez le middleware de rôle
 const { check, validationResult } = require('express-validator'); // <-- LIGNE À AJOUTER
 const mongoose = require('mongoose'); // Added this as it was used in the login route console.log
-const { logAction } = require('../middleware/logger'); // Importation du logger
+
 const moment = require('moment');
 const crypto = require('crypto');
 const xlsx = require('xlsx');
@@ -80,9 +80,7 @@ router.post('/login', async (req, res) => {
                     return res.status(500).json({ msg: 'Erreur du serveur.' });
                 }
 
-                // Log l'action de connexion
-                req.user = { matricule: agent.matricule, role: agent.role }; // Attacher manuellement les infos utilisateur pour le logger
-                await logAction(req, `Connexion réussie pour l'agent ${agent.matricule}`);
+                // The login action is now logged by the global middleware
 
                 // Optionnel: renvoyer un objet agent sans mot de passe
                 const agentSansMdp = {

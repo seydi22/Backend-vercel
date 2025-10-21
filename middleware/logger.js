@@ -1,30 +1,54 @@
-const Log = require("../models/Log");
+const Log = require('../models/Log');
+const jwt = require('jsonwebtoken');
+const onFinished = require('on-finished');
 
-/**
- * Enregistre une action utilisateur dans la base de données.
- * @param {Object} req - L'objet de requête Express.
- * @param {string} action - La description de l'action effectuée.
- */
-const logAction = async (req, action) => {
-  try {
-    // S'assurer que req.user existe avant de tenter d'accéder à ses propriétés
-    if (!req.user || !req.user.matricule) {
-      console.error("Logger Error: req.user.matricule is missing. Action will be logged without matricule.");
-      // Optionnel : vous pouvez décider de ne pas logger du tout si le matricule est essentiel
-      // return;
+const logMiddleware = (req, res, next) => {
+  const start = Date.now();
+
+  onFinished(res, async () => {
+    const duration = Date.now() - start;
+    const { method, originalUrl, ip, headers } = req;
+    const userAgent = headers['user-agent'];
+    const status = res.statusCode;
+
+    let matricule = 'N/A';
+    const token = headers['x-auth-token'];
+
+    if (token) {
+      try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        if (decoded && decoded.id) {
+          // Assuming the JWT payload has an 'id' field which is the user's ID
+          // And that you have a way to get the matricule from the user ID
+          // For now, let's assume the matricule is in the token
+          matricule = decoded.matricule || 'N/A';
+        }
+      } catch (ex) {
+        // Invalid token, matricule remains 'N/A'
+      }
     }
 
-    const log = new Log({
-      matricule: req.user ? req.user.matricule : 'N/A',
-      action,
-      ipAddress: req.ip,
-      userAgent: req.headers["user-agent"],
-    });
+    // Exclude logging of log-fetching requests to avoid infinite loops
+    if (originalUrl.startsWith('/api/logs')) {
+      return;
+    }
 
-    await log.save();
-  } catch (error) {
-    console.error("Failed to save log:", error);
-  }
+    const action = `${method} ${originalUrl} - ${status} [${duration}ms]`;
+
+    try {
+      const log = new Log({
+        matricule,
+        action,
+        ipAddress: ip,
+        userAgent,
+      });
+      await log.save();
+    } catch (error) {
+      console.error('Failed to save log:', error);
+    }
+  });
+
+  next();
 };
 
-module.exports = { logAction };
+module.exports = logMiddleware;
