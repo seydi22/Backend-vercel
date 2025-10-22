@@ -36,7 +36,9 @@ const corsOptions = {
     'https://moovmoney-admin-staging.vercel.app',
     'http://localhost:3000', // Port React/Next.js courant
     'http://localhost:3001',
-    'http://localhost:5173'  // Port Vite courant
+    'http://localhost:5173' ,
+    'http://localhost:59920/' 
+     // Port Vite courant
   ],
   methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
   allowedHeaders: ['Content-Type', 'Authorization', 'x-auth-token'],
