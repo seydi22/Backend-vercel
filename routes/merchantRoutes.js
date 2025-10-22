@@ -397,7 +397,7 @@ router.post(
             }
 
             const lastMerchant = await Merchant.findOne({ shortCode: { $exists: true } }).sort({ shortCode: -1 });
-            let newShortCode = "003016";
+            let newShortCode = "003063";
             if (lastMerchant && lastMerchant.shortCode) {
                 const incremented = (parseInt(lastMerchant.shortCode, 10) + 1).toString().padStart(6, '0');
                 newShortCode = incremented;
