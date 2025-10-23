@@ -44,7 +44,9 @@ const logMiddleware = (req, res, next) => {
     let matricule = 'Système';
     const token = headers['x-auth-token'];
 
-    if (token) {
+    if (req.user && req.user.matricule) {
+        matricule = req.user.matricule;
+    } else if (token) {
       try {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
         if (decoded && decoded.user && decoded.user.matricule) {

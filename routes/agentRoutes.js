@@ -82,6 +82,7 @@ router.post('/login', async (req, res) => {
                 }
 
                 // The login action is now logged by the global middleware
+                req.user = agent;
 
                 // Optionnel: renvoyer un objet agent sans mot de passe
                 const agentSansMdp = {
