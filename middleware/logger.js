@@ -6,7 +6,7 @@ const getActionDescription = (method, url, status) => {
     const statusText = status >= 400 ? 'Échec' : 'Succès';
 
     // User login
-    if (url.startsWith('/api/agents/login')) return `Connexion - ${statusText}`;
+    if (method === 'POST' && url.startsWith('/api/agents/login')) return `Connexion - ${statusText}`;
 
     // Agent management
     if (url.startsWith('/api/agents/register')) return `Création Agent - ${statusText}`;
