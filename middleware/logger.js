@@ -46,6 +46,10 @@ const logMiddleware = (req, res, next) => {
 
     if (req.user && req.user.matricule) {
         matricule = req.user.matricule;
+    } else if (method === 'POST' && originalUrl.startsWith('/api/agents/login') && status >= 400) {
+        if (req.body && req.body.matricule) {
+            matricule = req.body.matricule;
+        }
     } else if (token) {
       try {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);

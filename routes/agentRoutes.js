@@ -54,12 +54,6 @@ router.post('/login', async (req, res) => {
 
         // 2. Vérifier si l'agent existe et si le mot de passe est correct
         if (!agent || !(await agent.matchPassword(motDePasse))) {
-            // Log the failed login attempt
-            console.error(`Failed login attempt for matricule: ${matricule}`);
-            // Log l'activité de l'échec de connexion
-            if (req.logActivity) {
-                req.logActivity('Login Failure', `Attempted login for matricule: ${matricule}`);
-            }
             return res.status(401).json({ msg: 'Identifiants invalides.' });
         }
 
@@ -90,7 +84,7 @@ router.post('/login', async (req, res) => {
                 // The login action is now logged by the global middleware
                 req.user = agent;
 
-                // Optionnel: renvoyer un objet agent sans mdp
+                // Optionnel: renvoyer un objet agent sans mot de passe
                 const agentSansMdp = {
                     id: agent.id,
                     matricule: agent.matricule,
