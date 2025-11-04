@@ -41,7 +41,7 @@ const merchantSchema = new mongoose.Schema({
     },
     photoEnseigneUrl: { type: String, required: true },
 
-    statut: { type: String, enum: ['en attente', 'validé_par_superviseur', 'validé', 'rejeté'], default: 'en attente' },
+    statut: { type: String, enum: ['en attente', 'validé_par_superviseur', 'validé', 'rejeté', 'livré'], default: 'en attente' },
     agentRecruteurId: { type: mongoose.Schema.Types.ObjectId, ref: 'Agent' },
     createdAt: { type: Date, default: Date.now },
     validatedAt: { type: Date },
@@ -53,6 +53,12 @@ const merchantSchema = new mongoose.Schema({
     // NOUVEAUX CHAMPS POUR LE SUIVI SUPERVISEUR
     validatedBySupervisor: { type: mongoose.Schema.Types.ObjectId, ref: 'Agent' },
     validatedBySupervisorAt: { type: Date },
+
+    // NOUVEAUX CHAMPS POUR LA LIVRAISON
+    qrCodePhotoUrl: { type: String },
+    paymentTestPhotoUrl: { type: String },
+    deliveredAt: { type: Date },
+    deliveredBy: { type: mongoose.Schema.Types.ObjectId, ref: 'Agent' },
 
     // Tableau pour stocker les opérateurs liés à ce marchand
     operators: [operatorSchema] 
