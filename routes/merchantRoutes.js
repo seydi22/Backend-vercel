@@ -224,7 +224,7 @@ router.get(
 
             // L'admin ne doit voir que les marchands qui ont passé l'étape superviseur.
             const filter = {
-                statut: { $in: ['validé_par_superviseur', 'validé'] }
+                statut: { $in: ['validé_par_superviseur', 'validé', 'livré'] }
             };
 
             // Si un statut est passé en query par l'admin, on s'assure qu'il est autorisé

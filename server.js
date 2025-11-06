@@ -68,6 +68,11 @@ app.get('/api/performance/export', (req, res) => {
     res.redirect(301, `/api/export/performance?${queryString}`);
 });
 
+app.get('/api/suivi/export', (req, res) => {
+    const queryString = new URLSearchParams(req.query).toString();
+    res.redirect(301, `/api/export/suivi?${queryString}`);
+});
+
 app.get('/', (req, res) => {
     res.send('API Moov Money est en cours d\'exécution.');
 });

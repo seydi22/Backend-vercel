@@ -346,4 +346,83 @@ router.get(
     }
 );
 
+// @route   GET /api/export/suivi
+// @desc    Export tracking report for merchants
+// @access  Private (Admin)
+router.get(
+    '/suivi',
+    [authMiddleware, roleMiddleware(['admin'])],
+    async (req, res) => {
+        try {
+            const { startDate, endDate } = req.query;
+
+            let merchantFilter = { statut: 'validé' };
+            if (startDate && endDate) {
+                merchantFilter.createdAt = {
+                    $gte: new Date(startDate),
+                    $lte: new Date(endDate),
+                };
+            }
+
+            const merchants = await Merchant.find(merchantFilter).sort({ createdAt: -1 });
+
+            const workbook = new ExcelJS.Workbook();
+            workbook.creator = 'Moov Africa';
+            workbook.created = new Date();
+            const worksheet = workbook.addWorksheet('Rapport de Suivi');
+
+            const headers = [
+                'Shortcode',
+                'Nom Marchand',
+                'Prénom Gérant',
+                'Date d\'enrôlement',
+                'Date de validation superviseur',
+                'Date de validation finale',
+                'Numéro de téléphone',
+                'Latitude',
+                'Longitude'
+            ];
+
+            const headerRow = worksheet.addRow(headers);
+            headerRow.eachCell(cell => {
+                cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+                cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0070C0' } };
+            });
+
+            merchants.forEach(m => {
+                worksheet.addRow([
+                    m.shortCode,
+                    m.nom,
+                    m.prenomGerant,
+                    m.createdAt ? moment(m.createdAt).format('YYYY-MM-DD HH:mm:ss') : '',
+                    m.validatedBySupervisorAt ? moment(m.validatedBySupervisorAt).format('YYYY-MM-DD HH:mm:ss') : '',
+                    m.validatedAt ? moment(m.validatedAt).format('YYYY-MM-DD HH:mm:ss') : '',
+                    m.contact,
+                    m.latitude,
+                    m.longitude
+                ]);
+            });
+
+            worksheet.columns.forEach(column => {
+                column.width = 25;
+            });
+
+            const date = moment().format('YYYYMMDD');
+            const time = moment().format('HHmm');
+            const uniqueID = crypto.randomBytes(3).toString('hex');
+            const filename = `rapport_de_suivi_${date}_${time}_${uniqueID}.xlsx`;
+
+            res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+            res.setHeader('Content-Disposition', `attachment; filename=${filename}`);
+
+            await workbook.xlsx.write(res);
+            res.end();
+
+        } catch (err) {
+            console.error(err.message);
+            res.status(500).send('Erreur du serveur lors de la génération du rapport de suivi.');
+        }
+    }
+);
+
 module.exports = router;
