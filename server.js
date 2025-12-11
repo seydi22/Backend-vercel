@@ -30,16 +30,7 @@ const logMiddleware = require('./middleware/logger');
 app.use(logMiddleware);
 
 const corsOptions = {
-  origin: [
-    'https://moovmoney-admin.vercel.app',
-    'https://souscripteur-web.vercel.app',
-    'https://moovmoney-admin-staging.vercel.app',
-    'http://localhost:3000', // Port React/Next.js courant
-    'http://localhost:3001',
-    'http://localhost:5173' ,
-    'http://localhost:59920/' 
-     // Port Vite courant
-  ],
+  origin: '*',
   methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
   allowedHeaders: ['Content-Type', 'Authorization', 'x-auth-token'],
   optionsSuccessStatus: 204
