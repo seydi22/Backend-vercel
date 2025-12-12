@@ -64,6 +64,7 @@ router.post(
         { name: 'photoEnseigne', maxCount: 1 }
     ]),
     async (req, res) => {
+        console.log('>>> Vercel Debug: /api/merchants/register route handler reached');
         const {
             nom, secteur, typeCommerce, region, ville, commune,
             nomGerant, prenomGerant, dateNaissanceGerant,
