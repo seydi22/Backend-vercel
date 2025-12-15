@@ -50,11 +50,11 @@ const storage = new CloudinaryStorage({
 
 const upload = multer({ storage: storage });
 
-// @route   POST /api/merchants/register
+// @route   POST /api/merchants/createMerchant
 // @desc    Enregistrer un nouveau marchand
 // @access  Private (Agent/Superviseur)
 router.post(
-    '/register',
+    '/createMerchant',
     authMiddleware,
     roleMiddleware(['agent', 'superviseur']),
     upload.fields([
@@ -64,7 +64,7 @@ router.post(
         { name: 'photoEnseigne', maxCount: 1 }
     ]),
     async (req, res) => {
-        console.log('>>> Vercel Debug: /api/merchants/register route handler reached');
+        console.log('>>> Vercel Debug: /api/merchants/createMerchant route handler reached');
         const {
             nom, secteur, typeCommerce, region, ville, commune,
             nomGerant, prenomGerant, dateNaissanceGerant,
