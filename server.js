@@ -30,10 +30,12 @@ const logMiddleware = require('./middleware/logger');
 app.use(logMiddleware);
 
 const corsOptions = {
-  origin: '*',
+  origin: 'https://souscripteur-web.vercel.app',
   methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
   allowedHeaders: ['Content-Type', 'Authorization', 'x-auth-token'],
-  optionsSuccessStatus: 204
+  credentials: true,
+  optionsSuccessStatus: 204,
+  preflightContinue: false
 };
 
 app.use(cors(corsOptions));
