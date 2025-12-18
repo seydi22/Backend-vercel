@@ -94,7 +94,16 @@ router.post('/login', async (req, res) => {
                 }
 
                 console.log('>>> DEBUG: Login réussi pour:', matricule);
-                res.json({ token, agent: { id: agent.id, matricule: agent.matricule }, expiresIn: expirationTime });
+                res.json({ 
+    token, 
+    agent: { 
+        id: agent.id, 
+        matricule: agent.matricule,
+        role: agent.role,             // Ajouté
+        affiliation: agent.affiliation // Ajouté
+    }, 
+    expiresIn: expirationTime 
+});
             }
         );
 
