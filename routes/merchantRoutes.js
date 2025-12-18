@@ -9,7 +9,6 @@ const roleMiddleware = require('../middleware/roleMiddleware'); // Importez le m
 const Agent = require('../models/Agent'); // Ajoutez cette ligne pour importer le modèle Agent
 const cloudinary = require('cloudinary').v2;
 const { CloudinaryStorage } = require('multer-storage-cloudinary');
-const { agent } = require('supertest');
 const xlsx = require('xlsx'); // <--- Assurez-vous que cette ligne est bien présente !
 const moment = require('moment');
 const crypto = require('crypto');
