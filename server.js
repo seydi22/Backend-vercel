@@ -82,10 +82,6 @@ mongoose.connect(process.env.MONGO_URI)
         console.error('Erreur de connexion à MongoDB', err);
     });
 
-// Export de l'application pour Vercel
-module.exports = app;
+// Démarrage du serveur
+app.listen(PORT, () => console.log(`Serveur en cours d'exécution sur le port ${PORT}`));
 
-// Démarrage du serveur si le fichier est exécuté directement (pour le développement local)
-if (require.main === module) {
-    app.listen(PORT, () => console.log(`Serveur en cours d\'exécution sur le port ${PORT}`));
-}

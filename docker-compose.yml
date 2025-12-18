@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  # Service pour votre backend Node.js
+  backend:
+    build: .
+    container_name: moov-backend
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      # Mappe le port 3000 du conteneur au port 3000 de la machine hôte (EC2)
+      # Vous pouvez changer le premier chiffre (ex: "8080:3000") pour exposer un port différent
+      - "${PORT}:${PORT}"
+    networks:
+      - app-network
+    volumes:
+      # Monte un volume nommé pour persister les fichiers uploadés
+      # Cela évite de perdre les données si le conteneur est recréé
+      - uploads:/app/uploads
+    depends_on:
+      - mongo
+
+  # Service pour la base de données MongoDB
+  mongo:
+    image: mongo:6.0 # Il est recommandé d'utiliser une version spécifique
+    container_name: mongo
+    restart: unless-stopped
+    environment:
+      # Ces variables sont lues depuis votre fichier .env
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASS}
+    volumes:
+      # Persiste les données de la base de données sur la machine hôte
+      - mongo-data:/data/db
+    networks:
+      - app-network
+
+networks:
+  # Réseau pour permettre la communication entre les conteneurs
+  # Votre futur conteneur n8n pourra rejoindre ce réseau
+  app-network:
+    driver: bridge
+
+volumes:
+  # Volumes pour la persistance des données
+  mongo-data:
+  uploads:
