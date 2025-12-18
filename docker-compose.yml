@@ -8,51 +8,18 @@ services:
     restart: unless-stopped
     env_file: .env
     ports:
-      - "3000:5000"
-    networks:
-      - app-network
-    volumes:
-      - uploads:/app/uploads
-    depends_on:
-      - mongo
-
-  # Service pour la base de données MongoDB
-  mongo:
-    image: mongo:6.0
-    container_name: mongo
-    restart: unless-stopped
-    environment:
-      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER}
-      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASS}
-    volumes:
-      - mongo-data:/data/db
-    networks:
-      - app-network
-
-  # Service n8n
-  n8n:
-    image: n8nio/n8n:latest
-    container_name: n8n-automation
-    restart: unless-stopped
-    ports:
-      - "5678:5678"
-    environment:
-      - N8N_HOST=3.253.74.107
-      - N8N_PORT=5678
-      - N8N_PROTOCOL=http
-      - NODE_ENV=production
-      - WEBHOOK_URL=http://3.253.74.107:5678/
-      - N8N_SECURE_COOKIE=false
-    volumes:
-      - n8n_data:/home/node/.n8n
+      # Mappe le port de votre application au port de la machine hôte (EC2)
+      - "${PORT}:${PORT}"
     networks:
       - app-network
 
 networks:
+  # Réseau pour permettre la communication entre les conteneurs
+  # Votre futur conteneur n8n pourra rejoindre ce réseau
   app-network:
     driver: bridge
 
 volumes:
-  mongo-data:
+  # Le volume pour mongo-data n'est plus nécessaire
+  # On garde celui pour les uploads
   uploads:
-  n8n_data:
