@@ -44,31 +44,43 @@ router.post('/register', authMiddleware, roleMiddleware(['admin']), async (req, 
 });
 
 router.post('/login', async (req, res) => {
-    // Utilisez un bloc try...catch pour une meilleure gestion des erreurs
     try {
         const { matricule, motDePasse } = req.body;
 
-        console.log('>>> Vercel Debug: Attempting Agent.findOne() for matricule:', matricule, 'Connection state:', mongoose.connection.readyState);
-        // 1. Sélectionner explicitement le mot de passe pour la vérification
-        const agent = await Agent.findOne({ matricule }).select('+motDePasse');
+        console.log('>>> DEBUG: Tentative de login pour:', matricule);
+        console.log('>>> DEBUG: État connexion MongoDB:', mongoose.connection.readyState);
 
-        // 2. Vérifier si l'agent existe et si le mot de passe est correct
-        if (!agent || !(await agent.matchPassword(motDePasse))) {
+        // 1. Recherche de l'agent
+        const agent = await Agent.findOne({ matricule }).select('+motDePasse');
+        
+        if (!agent) {
+            console.log('>>> DEBUG: Agent NON trouvé dans la base.');
+            return res.status(401).json({ msg: 'Identifiants invalides.' });
+        }
+        console.log('>>> DEBUG: Agent trouvé. Comparaison du mot de passe...');
+
+        // 2. Vérification du mot de passe
+        // On ajoute un log pour vérifier si la méthode matchPassword existe bien
+        const isMatch = await agent.matchPassword(motDePasse);
+        console.log('>>> DEBUG: Résultat comparaison mot de passe:', isMatch);
+
+        if (!isMatch) {
             return res.status(401).json({ msg: 'Identifiants invalides.' });
         }
 
-        // 3. Créer la "payload" et le token
+        // 3. Création du Token
+        console.log('>>> DEBUG: Génération du JWT avec SECRET:', process.env.JWT_SECRET ? "Présent" : "MANQUANT !");
+
         const payload = {
             user: {
                 id: agent.id,
                 role: agent.role,
                 affiliation: agent.affiliation,
-                matricule: agent.matricule // Include matricule in the payload
+                matricule: agent.matricule
             }
         };
 
-        // 4. Générer le token JWT
-        const expiresInSeconds = 3600; // 1 heure
+        const expiresInSeconds = 3600;
         const expirationTime = Math.floor(Date.now() / 1000) + expiresInSeconds;
 
         jwt.sign(
@@ -77,32 +89,20 @@ router.post('/login', async (req, res) => {
             { expiresIn: expiresInSeconds },
             async (err, token) => {
                 if (err) {
-                    console.error(err);
+                    console.error('>>> DEBUG: Erreur JWT.sign:', err);
                     return res.status(500).json({ msg: 'Erreur du serveur.' });
                 }
 
-                // The login action is now logged by the global middleware
-                req.user = agent;
-
-                // Optionnel: renvoyer un objet agent sans mot de passe
-                const agentSansMdp = {
-                    id: agent.id,
-                    matricule: agent.matricule,
-                    role: agent.role,
-                    affiliation: agent.affiliation,
-                    // ... autres champs
-                };
-                res.json({ token, agent: agentSansMdp, expiresIn: expirationTime });
+                console.log('>>> DEBUG: Login réussi pour:', matricule);
+                res.json({ token, agent: { id: agent.id, matricule: agent.matricule }, expiresIn: expirationTime });
             }
         );
 
     } catch (err) {
-        // Gérer les erreurs inattendues
-        console.error(err.message);
+        console.error('>>> DEBUG: ERREUR CRITIQUE:', err.message);
         res.status(500).send('Erreur du serveur.');
     }
 });
-
 // Route pour obtenir la performance de tous les agents (réservée aux superviseurs et admins)
 router.get(
     '/performance',
