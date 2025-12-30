@@ -35,7 +35,7 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization', 'x-auth-token']
 }));
 
-app.options('*', cors());
+
 const PORT = process.env.PORT || 5000;
 
 cloudinary.config({
