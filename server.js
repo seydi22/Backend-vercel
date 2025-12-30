@@ -29,16 +29,13 @@ app.set('trust proxy', 1);
 const logMiddleware = require('./middleware/logger');
 app.use(logMiddleware);
 
-const corsOptions = {
-  origin: 'https://souscripteur-web.vercel.app',
-  methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-auth-token'],
-  credentials: true,
-  optionsSuccessStatus: 204,
-  preflightContinue: false
-};
+app.use(cors({
+  origin: '*',
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-auth-token']
+}));
 
-app.use(cors(corsOptions));
+app.options('*', cors());
 const PORT = process.env.PORT || 5000;
 
 cloudinary.config({
