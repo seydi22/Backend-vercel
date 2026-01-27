@@ -427,4 +427,253 @@ router.get(
     }
 );
 
+// @route   GET /api/export/nearby
+// @desc    Export nearby items for merchants
+// @access  Private (Admin)
+router.get(
+    '/nearby',
+    [authMiddleware, roleMiddleware(['admin'])],
+    async (req, res) => {
+        try {
+            const { startDate, endDate } = req.query;
+            
+            // 1. Données de Location Map (hardcodées)
+            const locationMapData = [
+                {
+                    provinceName: '湖南省',
+                    provinceCode: 'HUNAN',
+                    cityName: '长沙市',
+                    cityCode: 'CHANGSHA',
+                    zoneName: '岳麓区',
+                    zoneCode: 'YUELU'
+                },
+                {
+                    provinceName: '湖南省',
+                    provinceCode: 'HUNAN',
+                    cityName: '长沙市',
+                    cityCode: 'CHANGSHA',
+                    zoneName: '开福区',
+                    zoneCode: 'KAIFU'
+                },
+                {
+                    provinceName: '湖南省',
+                    provinceCode: 'HUNAN',
+                    cityName: '湘潭市',
+                    cityCode: 'XIANGRAN',
+                    zoneName: '雨湖区',
+                    zoneCode: 'YUHU'
+                },
+                {
+                    provinceName: '湖南省',
+                    provinceCode: 'HUNAN',
+                    cityName: '湘潭市',
+                    cityCode: 'XIANGRAN',
+                    zoneName: '岳塘区',
+                    zoneCode: 'YUETANG'
+                },
+                {
+                    provinceName: '湖北省',
+                    provinceCode: 'HUBEI',
+                    cityName: '武汉市',
+                    cityCode: 'WUHAN',
+                    zoneName: '江岸区',
+                    zoneCode: 'JIANGAN'
+                },
+                {
+                    provinceName: '湖北省',
+                    provinceCode: 'HUBEI',
+                    cityName: '武汉市',
+                    cityCode: 'WUHAN',
+                    zoneName: '洪山区',
+                    zoneCode: 'HONGSHAN'
+                },
+                {
+                    provinceName: '湖北省',
+                    provinceCode: 'HUBEI',
+                    cityName: '黄石市',
+                    cityCode: 'HUANGSHI',
+                    zoneName: '鄂城区',
+                    zoneCode: 'ECHENG'
+                },
+                {
+                    provinceName: '湖北省',
+                    provinceCode: 'HUBEI',
+                    cityName: '黄石市',
+                    cityCode: 'HUANGSHI',
+                    zoneName: '江夏区',
+                    zoneCode: 'JIANGXIA'
+                }
+            ];
+            
+            // Utiliser le premier élément comme valeurs par défaut (HUNAN, CHANGSHA, YUELU)
+            const defaultProvinceCode = locationMapData[0].provinceCode;
+            const defaultCityCode = locationMapData[0].cityCode;
+            const defaultZoneCode = locationMapData[0].zoneCode;
+            
+            // 2. Récupérer les marchands validés avec filtres par date
+            let merchantFilter = { statut: 'validé' };
+            if (startDate && endDate) {
+                merchantFilter.validatedAt = {
+                    $gte: new Date(startDate),
+                    $lte: new Date(endDate),
+                };
+            } else if (startDate) {
+                merchantFilter.validatedAt = { ...merchantFilter.validatedAt, $gte: new Date(startDate) };
+            } else if (endDate) {
+                merchantFilter.validatedAt = { ...merchantFilter.validatedAt, $lte: new Date(endDate) };
+            }
+            
+            const merchants = await Merchant.find(merchantFilter).sort({ createdAt: -1 });
+            
+            if (!merchants || merchants.length === 0) {
+                return res.status(404).json({ msg: 'Aucun marchand validé à exporter.' });
+            }
+            
+            // 3. Créer le nouveau workbook
+            const workbook = new ExcelJS.Workbook();
+            workbook.creator = 'Moov Africa';
+            workbook.created = new Date();
+            
+            // 4. Créer la feuille "Nearby Item"
+            const nearbyItemSheet = workbook.addWorksheet('Nearby Item');
+            
+            // En-têtes de la première feuille
+            const nearbyItemHeaders = [
+                'Item Name',
+                'Nearby Type ID',
+                'Province Code',
+                'City Code',
+                'Zone Code',
+                'Longitude',
+                'Latitude',
+                'Phone Number',
+                'Title',
+                'Detailed Address'
+            ];
+            
+            const headerRow = nearbyItemSheet.addRow(nearbyItemHeaders);
+            headerRow.eachCell(cell => {
+                cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+                cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0070C0' } };
+                cell.border = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } };
+            });
+            
+            // Ajouter les données des marchands
+            merchants.forEach(merchant => {
+                // Item Name : nom de l'enseigne suivi du shortcode séparé par un "-"
+                const itemName = merchant.shortCode 
+                    ? `${merchant.nom}-${merchant.shortCode}` 
+                    : merchant.nom;
+                
+                // Nearby Type ID : fixe, toujours 40001
+                const nearbyTypeId = 40001;
+                
+                // Province Code, City Code, Zone Code : valeurs fixes (premier élément de Location Map)
+                const provinceCode = defaultProvinceCode;
+                const cityCode = defaultCityCode;
+                const zoneCode = defaultZoneCode;
+                
+                // Longitude et Latitude du marchand
+                const longitude = merchant.longitude || '';
+                const latitude = merchant.latitude || '';
+                
+                // Numéro de téléphone du marchand
+                const phoneNumber = merchant.contact || '';
+                
+                // Title : nom de l'enseigne
+                const title = merchant.nom || '';
+                
+                // Detailed Address : adresse du marchand
+                const detailedAddress = merchant.adresse || '';
+                
+                nearbyItemSheet.addRow([
+                    itemName,
+                    nearbyTypeId,
+                    provinceCode,
+                    cityCode,
+                    zoneCode,
+                    longitude,
+                    latitude,
+                    phoneNumber,
+                    title,
+                    detailedAddress
+                ]);
+            });
+            
+            // Ajuster la largeur des colonnes
+            nearbyItemSheet.columns.forEach(column => {
+                let maxLength = 0;
+                column.eachCell({ includeEmpty: true }, cell => {
+                    let columnLength = cell.value ? cell.value.toString().length : 10;
+                    if (columnLength > maxLength) {
+                        maxLength = columnLength;
+                    }
+                });
+                column.width = maxLength < 10 ? 10 : maxLength + 2;
+            });
+            
+            nearbyItemSheet.views = [{ state: 'frozen', ySplit: 1 }];
+            
+            // 5. Créer la feuille "Location Map" (copie du template)
+            const locationMapSheetNew = workbook.addWorksheet('Location Map');
+            
+            // Copier les en-têtes depuis le template
+            const locationMapHeaders = ['Province', 'Province', 'City', 'City', 'Zone', 'Zone'];
+            const locationMapSubHeaders = ['Name', 'Code', 'Name', 'Code', 'Name', 'Code'];
+            
+            const headerRow1 = locationMapSheetNew.addRow(locationMapHeaders);
+            headerRow1.eachCell(cell => {
+                cell.font = { bold: true };
+            });
+            
+            const headerRow2 = locationMapSheetNew.addRow(locationMapSubHeaders);
+            headerRow2.eachCell(cell => {
+                cell.font = { bold: true };
+            });
+            
+            // Copier les données depuis le template
+            locationMapData.forEach(location => {
+                locationMapSheetNew.addRow([
+                    location.provinceName,
+                    location.provinceCode,
+                    location.cityName,
+                    location.cityCode,
+                    location.zoneName,
+                    location.zoneCode
+                ]);
+            });
+            
+            // Ajuster la largeur des colonnes
+            locationMapSheetNew.columns.forEach(column => {
+                let maxLength = 0;
+                column.eachCell({ includeEmpty: true }, cell => {
+                    let columnLength = cell.value ? cell.value.toString().length : 10;
+                    if (columnLength > maxLength) {
+                        maxLength = columnLength;
+                    }
+                });
+                column.width = maxLength < 10 ? 10 : maxLength + 2;
+            });
+            
+            locationMapSheetNew.views = [{ state: 'frozen', ySplit: 2 }];
+            
+            // 6. Envoyer le fichier
+            const date = moment().format('YYYYMMDD');
+            const time = moment().format('HHmm');
+            const uniqueID = crypto.randomBytes(3).toString('hex');
+            const filename = `export_nearby_${date}_${time}_${uniqueID}.xlsx`;
+            
+            res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+            res.setHeader('Content-Disposition', `attachment; filename=${filename}`);
+            
+            await workbook.xlsx.write(res);
+            res.end();
+            
+        } catch (err) {
+            console.error('Erreur export nearby:', err.message);
+            res.status(500).send('Erreur du serveur lors de la génération de l\'export nearby.');
+        }
+    }
+);
+
 module.exports = router;
