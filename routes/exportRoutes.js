@@ -85,29 +85,31 @@ router.get(
             });
 
             enrollments.forEach(e => {
-                const agent = agentPerformance[e.agentRecruteurId._id];
-                if (agent) {
-                    agent.total++;
-                    if (e.statut === 'validé') agent.valid++;
-                    else if (e.statut === 'rejeté') agent.rejected++;
-                    else agent.pending++;
+                if (e.agentRecruteurId) { // Check if agentRecruteurId exists
+                    const agent = agentPerformance[e.agentRecruteurId._id];
+                    if (agent) {
+                        agent.total++;
+                        if (e.statut === 'validé') agent.valid++;
+                        else if (e.statut === 'rejeté') agent.rejected++;
+                        else agent.pending++;
 
-                    const enrollmentDate = moment(e.createdAt);
-                    if (!agent.lastEnrollment || enrollmentDate.isAfter(agent.lastEnrollment)) {
-                        agent.lastEnrollment = enrollmentDate;
+                        const enrollmentDate = moment(e.createdAt);
+                        if (!agent.lastEnrollment || enrollmentDate.isAfter(agent.lastEnrollment)) {
+                            agent.lastEnrollment = enrollmentDate;
+                        }
+                        agent.activeDays.add(enrollmentDate.format('YYYY-MM-DD'));
                     }
-                    agent.activeDays.add(enrollmentDate.format('YYYY-MM-DD'));
-                }
 
-                const teamName = e.agentRecruteurId.superviseurId ? e.agentRecruteurId.superviseurId.matricule : null;
-                if (teamName) {
-                    const team = teamPerformance[teamName];
-                    if (team) {
-                        team.totalEnrollments++;
-                        if (e.statut === 'validé') team.valid++;
-                        if (e.statut === 'rejeté') team.rejected++;
-                        const day = moment(e.createdAt).format('YYYY-MM-DD');
-                        team.dailyActivity[day] = (team.dailyActivity[day] || 0) + 1;
+                    const teamName = e.agentRecruteurId.superviseurId ? e.agentRecruteurId.superviseurId.matricule : null;
+                    if (teamName) {
+                        const team = teamPerformance[teamName];
+                        if (team) {
+                            team.totalEnrollments++;
+                            if (e.statut === 'validé') team.valid++;
+                            if (e.statut === 'rejeté') team.rejected++;
+                            const day = moment(e.createdAt).format('YYYY-MM-DD');
+                            team.dailyActivity[day] = (team.dailyActivity[day] || 0) + 1;
+                        }
                     }
                 }
             });
@@ -233,8 +235,8 @@ router.get(
             enrollments.forEach(e => {
                 detailSheet.addRow([
                     e.shortCode,
-                    e.agentRecruteurId.superviseurId ? e.agentRecruteurId.superviseurId.matricule : 'Aucune Équipe',
-                    e.agentRecruteurId.nom || e.agentRecruteurId.matricule,
+                    e.agentRecruteurId && e.agentRecruteurId.superviseurId ? e.agentRecruteurId.superviseurId.matricule : 'Aucune Équipe',
+                    e.agentRecruteurId ? (e.agentRecruteurId.nom || e.agentRecruteurId.matricule) : 'N/A',
                     moment(e.createdAt).format('YYYY-MM-DD HH:mm:ss'),
                     e.statut,
                     e.nom,
