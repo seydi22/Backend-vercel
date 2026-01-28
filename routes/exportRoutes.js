@@ -9,6 +9,7 @@ const Agent = require('../models/Agent');
 const authMiddleware = require('../middleware/authMiddleware');
 const roleMiddleware = require('../middleware/roleMiddleware');
 const crypto = require('crypto');
+const archiver = require('archiver');
 
 // @route   GET /api/export/performance
 // @desc    Export agent and team performance to Excel
@@ -661,41 +662,68 @@ router.get(
                 return workbook;
             };
             
-            // Pagination simple côté backend : export d'un seul lot par requête
-            // Paramètres optionnels : page (1 par défaut), limit (100 par défaut)
-            const page = parseInt(req.query.page, 10) || 1;
-            const limit = parseInt(req.query.limit, 10) || 100;
+            const LOT_SIZE = 100;
             const totalMerchants = merchants.length;
-            const totalPages = Math.ceil(totalMerchants / limit) || 1;
 
-            if (page < 1 || page > totalPages) {
-                return res.status(400).json({
-                    msg: 'Page de pagination invalide.',
-                    totalMerchants,
-                    totalPages
+            // Si le nombre de marchands dépasse 100, créer un ZIP avec plusieurs fichiers Excel (lots de 100)
+            if (totalMerchants > LOT_SIZE) {
+                const date = moment().format('YYYYMMDD');
+                const time = moment().format('HHmm');
+                const uniqueID = crypto.randomBytes(3).toString('hex');
+                const zipFilename = `export_nearby_${date}_${time}_${uniqueID}.zip`;
+
+                // Headers pour un fichier ZIP
+                res.setHeader('Content-Type', 'application/zip');
+                res.setHeader('Content-Disposition', `attachment; filename=${zipFilename}`);
+
+                const archive = archiver('zip', { zlib: { level: 9 } });
+
+                archive.on('error', (err) => {
+                    console.error('Erreur archive ZIP nearby:', err);
+                    // Important: fermer la réponse en cas d'erreur
+                    if (!res.headersSent) {
+                        res.status(500).send('Erreur lors de la génération de l’archive ZIP.');
+                    } else {
+                        res.end();
+                    }
                 });
+
+                // On pipe l'archive vers la réponse HTTP
+                archive.pipe(res);
+
+                const totalLots = Math.ceil(totalMerchants / LOT_SIZE);
+
+                for (let i = 0; i < totalLots; i++) {
+                    const start = i * LOT_SIZE;
+                    const end = Math.min(start + LOT_SIZE, totalMerchants);
+                    const merchantsLot = merchants.slice(start, end);
+                    const lotNumber = i + 1;
+
+                    const workbook = await createWorkbookForLot(merchantsLot, lotNumber);
+                    const buffer = await workbook.xlsx.writeBuffer();
+
+                    const excelFilename = `export_nearby_lot_${lotNumber}_${merchantsLot.length}_merchants.xlsx`;
+                    archive.append(buffer, { name: excelFilename });
+                }
+
+                // Finaliser le ZIP (en streaming vers le client)
+                archive.finalize();
+
+            } else {
+                // Si ≤ 100 marchands : un seul fichier Excel direct (pas de ZIP)
+                const workbook = await createWorkbookForLot(merchants, 1);
+
+                const date = moment().format('YYYYMMDD');
+                const time = moment().format('HHmm');
+                const uniqueID = crypto.randomBytes(3).toString('hex');
+                const filename = `export_nearby_${date}_${time}_${uniqueID}.xlsx`;
+
+                res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+                res.setHeader('Content-Disposition', `attachment; filename=${filename}`);
+
+                await workbook.xlsx.write(res);
+                res.end();
             }
-
-            const startIndex = (page - 1) * limit;
-            const endIndex = Math.min(startIndex + limit, totalMerchants);
-            const merchantsLot = merchants.slice(startIndex, endIndex);
-
-            if (!merchantsLot.length) {
-                return res.status(404).json({ msg: 'Aucun marchand pour cette page.' });
-            }
-
-            const workbook = await createWorkbookForLot(merchantsLot, page);
-
-            const date = moment().format('YYYYMMDD');
-            const time = moment().format('HHmm');
-            const uniqueID = crypto.randomBytes(3).toString('hex');
-            const filename = `export_nearby_p${page}_n${merchantsLot.length}_${date}_${time}_${uniqueID}.xlsx`;
-
-            res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-            res.setHeader('Content-Disposition', `attachment; filename=${filename}`);
-
-            await workbook.xlsx.write(res);
-            res.end();
             
         } catch (err) {
             console.error('Erreur export nearby:', err.message);
