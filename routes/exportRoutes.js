@@ -10,6 +10,7 @@ const authMiddleware = require('../middleware/authMiddleware');
 const roleMiddleware = require('../middleware/roleMiddleware');
 const crypto = require('crypto');
 const archiver = require('archiver');
+const { REJETE_DEFINITIF } = require('../utils/merchantStatus');
 
 // @route   GET /api/export/performance
 // @desc    Export agent and team performance to Excel
@@ -91,7 +92,7 @@ router.get(
                     if (agent) {
                         agent.total++;
                         if (e.statut === 'validé') agent.valid++;
-                        else if (e.statut === 'rejeté') agent.rejected++;
+                        else if (e.statut === 'rejeté' || e.statut === REJETE_DEFINITIF) agent.rejected++;
                         else agent.pending++;
 
                         const enrollmentDate = moment(e.createdAt);
@@ -107,7 +108,7 @@ router.get(
                         if (team) {
                             team.totalEnrollments++;
                             if (e.statut === 'validé') team.valid++;
-                            if (e.statut === 'rejeté') team.rejected++;
+                            if (e.statut === 'rejeté' || e.statut === REJETE_DEFINITIF) team.rejected++;
                             const day = moment(e.createdAt).format('YYYY-MM-DD');
                             team.dailyActivity[day] = (team.dailyActivity[day] || 0) + 1;
                         }

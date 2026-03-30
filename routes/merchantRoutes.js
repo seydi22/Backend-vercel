@@ -12,7 +12,13 @@ const { CloudinaryStorage } = require('multer-storage-cloudinary');
 const xlsx = require('xlsx'); // <--- Assurez-vous que cette ligne est bien présente !
 const moment = require('moment');
 const crypto = require('crypto');
+const { REJETE_DEFINITIF, isMerchantLocked } = require('../utils/merchantStatus');
 
+function lockedEnrollmentResponse(res) {
+    return res.status(403).json({
+        msg: 'Cet enrôlement est rejeté définitivement et ne peut plus être modifié ni validé.',
+    });
+}
 
 // Configuration de Cloudinary
 cloudinary.config({
@@ -224,7 +230,7 @@ router.get(
 
             // L'admin ne doit voir que les marchands qui ont passé l'étape superviseur.
             const filter = {
-                statut: { $in: ['validé_par_superviseur', 'validé', 'livré'] }
+                statut: { $in: ['validé_par_superviseur', 'validé', 'livré', REJETE_DEFINITIF] }
             };
 
             // Si un statut est passé en query par l'admin, on s'assure qu'il est autorisé
@@ -282,6 +288,7 @@ router.get(
                 'validé_par_superviseur': 0,
                 'validé': 0,
                 'rejeté': 0,
+                [REJETE_DEFINITIF]: 0,
                 'livré': 0,
             };
 
@@ -357,6 +364,9 @@ router.post(
             if (!merchant) {
                 return res.status(404).json({ msg: 'Marchand non trouvé.' });
             }
+            if (isMerchantLocked(merchant)) {
+                return lockedEnrollmentResponse(res);
+            }
             if (merchant.statut !== 'en attente') {
                 return res.status(400).json({ msg: `Le marchand n'est pas en attente de validation. Statut actuel: ${merchant.statut}` });
             }
@@ -392,6 +402,9 @@ router.post(
             const merchant = await Merchant.findById(req.params.id);
             if (!merchant) {
                 return res.status(404).json({ msg: 'Marchand non trouvé.' });
+            }
+            if (isMerchantLocked(merchant)) {
+                return lockedEnrollmentResponse(res);
             }
             if (merchant.statut !== 'validé_par_superviseur') {
                 return res.status(400).json({ msg: 'Le marchand n est pas en attente de validation finale.' });
@@ -542,6 +555,9 @@ router.post(
             if (!merchant) {
                 return res.status(404).json({ msg: 'Marchand non trouvé.' });
             }
+            if (isMerchantLocked(merchant)) {
+                return lockedEnrollmentResponse(res);
+            }
             if (merchant.statut !== 'validé_par_superviseur') {
                 return res.status(400).json({ msg: 'Ce marchand n est pas en attente de validation finale.' });
             }
@@ -551,6 +567,46 @@ router.post(
             await merchant.save();
 
             res.json({ msg: 'Marchand renvoyé au superviseur pour correction.', merchant });
+        } catch (err) {
+            console.error(err.message);
+            res.status(500).send('Erreur du serveur.');
+        }
+    }
+);
+
+// @route   POST /api/merchants/admin-reject-definitive/:id
+// @desc    Rejet définitif (admin) — l'enrôlement ne peut plus être modifié ni validé
+// @access  Private (Admin)
+router.post(
+    '/admin-reject-definitive/:id',
+    [authMiddleware, roleMiddleware(['admin'])],
+    async (req, res) => {
+        try {
+            const { rejectionReason } = req.body;
+            if (!rejectionReason || !String(rejectionReason).trim()) {
+                return res.status(400).json({ msg: 'La raison du rejet est requise.' });
+            }
+
+            const merchant = await Merchant.findById(req.params.id);
+            if (!merchant) {
+                return res.status(404).json({ msg: 'Marchand non trouvé.' });
+            }
+            if (isMerchantLocked(merchant)) {
+                return res.status(400).json({ msg: 'Ce marchand est déjà rejeté définitivement.' });
+            }
+
+            const statutsAutorises = ['en attente', 'validé_par_superviseur', 'rejeté'];
+            if (!statutsAutorises.includes(merchant.statut)) {
+                return res.status(400).json({
+                    msg: `Le rejet définitif n'est pas applicable pour le statut actuel : ${merchant.statut}.`,
+                });
+            }
+
+            merchant.statut = REJETE_DEFINITIF;
+            merchant.rejectionReason = `Rejet définitif (admin): ${rejectionReason.trim()}`;
+            await merchant.save();
+
+            res.json({ msg: 'Enrôlement rejeté définitivement.', merchant });
         } catch (err) {
             console.error(err.message);
             res.status(500).send('Erreur du serveur.');
@@ -574,6 +630,9 @@ router.post(
             const merchant = await Merchant.findById(req.params.id);
             if (!merchant) {
                 return res.status(404).json({ msg: 'Marchand non trouvé.' });
+            }
+            if (isMerchantLocked(merchant)) {
+                return lockedEnrollmentResponse(res);
             }
             if (merchant.statut !== 'en attente') {
                 return res.status(400).json({ msg: 'Ce marchand ne peut pas être rejeté à cette étape.' });
@@ -881,6 +940,12 @@ router.put(
             // Vérifier que l'agent qui modifie est bien l'agent recruteur
             if (merchant.agentRecruteurId.toString() !== req.user.id) {
                 return res.status(403).json({ msg: 'Action non autorisée. Vous ne pouvez modifier que vos propres marchands.' });
+            }
+
+            if (isMerchantLocked(merchant)) {
+                return res.status(403).json({
+                    msg: 'Cet enrôlement est rejeté définitivement et ne peut plus être modifié.',
+                });
             }
 
             // Seuls les marchands avec le statut "rejeté" peuvent être modifiés.

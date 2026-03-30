@@ -1,5 +1,6 @@
 
 const Merchant = require('../models/Merchant');
+const { isMerchantLocked } = require('../utils/merchantStatus');
 const Agent = require('../models/Agent');
 const asyncHandler = require('express-async-handler');
 
@@ -11,6 +12,10 @@ const deliverMerchant = asyncHandler(async (req, res) => {
 
     if (!merchant) {
         return res.status(404).json({ msg: 'Marchand non trouvé.' });
+    }
+
+    if (isMerchantLocked(merchant)) {
+        return res.status(403).json({ msg: 'Cet enrôlement est rejeté définitivement et ne peut plus être modifié.' });
     }
 
     // Check if the logged-in agent is the one who recruited the merchant
