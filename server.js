@@ -6,6 +6,7 @@ const agentRoutes = require('./routes/agentRoutes');
 const merchantRoutes = require('./routes/merchantRoutes');
 const logRoutes = require('./routes/logRoutes');
 const exportRoutes = require('./routes/exportRoutes');
+const appRoutes = require('./routes/appRoutes');
 const path = require('path');
 const cloudinary = require('cloudinary').v2;
 
@@ -52,6 +53,7 @@ app.use('/api/agents', agentRoutes);
 app.use('/api/merchants', merchantRoutes);
 app.use('/api/logs', logRoutes);
 app.use('/api/export', exportRoutes);
+app.use('/api/app', appRoutes);
 
 app.get('/api/performance/export', (req, res) => {
     const queryString = new URLSearchParams(req.query).toString();
