@@ -232,7 +232,7 @@ router.get(
             // L'admin ne doit voir que les marchands qui ont passé l'étape superviseur
             // ou qui ont été créés dans le CPS (statut 'cree').
             const filter = {
-                statut: { $in: ['validé_par_superviseur', 'validé', 'cree', 'livré', REJETE_DEFINITIF] }
+                statut: { $in: ['validé_par_superviseur', 'validé', 'cree', 'rejeté', 'livré', REJETE_DEFINITIF] }
             };
 
             // Si un statut est passé en query par l'admin, on s'assure qu'il est autorisé
