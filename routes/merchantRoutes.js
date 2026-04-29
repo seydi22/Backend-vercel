@@ -652,7 +652,9 @@ router.post(
                         shortCode: merchant.shortCode,
                         languageCode: process.env.CPS_OPERATOR_LANGUAGE_CODE || 'en',
                         authenticationType,
-                        userName: process.env.CPS_OPERATOR_USERNAME || operatorMsisdn,
+                        // En prod, UserName peut devoir être vide (cf export opérateurs) ou un login non-MSISDN.
+                        // Par défaut on laisse vide et on permet de forcer via .env.
+                        userName: process.env.CPS_OPERATOR_USERNAME ?? '',
                         operatorId,
                         msisdn: operatorMsisdn,
                         roleId,
