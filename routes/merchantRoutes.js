@@ -13,7 +13,7 @@ const xlsx = require('xlsx'); // <--- Assurez-vous que cette ligne est bien pré
 const moment = require('moment');
 const crypto = require('crypto');
 const { REJETE_DEFINITIF, isMerchantLocked } = require('../utils/merchantStatus');
-const { cpsCreateTopOrg, cpsCreateOrgOperator, todayYYYYMMDD } = require('../services/cpsSyncApi');
+const { cpsCreateTopOrg, cpsCreateOrgOperator, cpsQueryOrgOperatorInfo, todayYYYYMMDD } = require('../services/cpsSyncApi');
 
 function lockedEnrollmentResponse(res) {
     return res.status(403).json({
@@ -409,21 +409,35 @@ router.post(
             if (isMerchantLocked(merchant)) {
                 return lockedEnrollmentResponse(res);
             }
+            if (merchant.statut === 'cree') {
+                return res.json({ msg: 'Marchand déjà créé dans CPS.', merchant });
+            }
             if (merchant.statut !== 'validé_par_superviseur') {
                 return res.status(400).json({ msg: 'Le marchand n est pas en attente de validation finale.' });
             }
 
-            const lastMerchant = await Merchant.findOne({ shortCode: { $exists: true } }).sort({ shortCode: -1 });
-            let newShortCode = "003063";
-            if (lastMerchant && lastMerchant.shortCode) {
-                const incremented = (parseInt(lastMerchant.shortCode, 10) + 1).toString().padStart(6, '0');
-                newShortCode = incremented;
+            // Empêche les doubles clics / appels concurrents (idempotence)
+            if (merchant.cpsIntegration?.status === 'in_progress') {
+                return res.status(409).json({
+                    msg: 'Intégration CPS déjà en cours pour ce marchand. Réessayez dans quelques secondes.',
+                    merchant,
+                });
             }
 
-            // Prépare le ShortCode (requis pour CPS)
-            merchant.shortCode = newShortCode;
-            merchant.operators.forEach(operator => {
-                operator.shortCode = newShortCode;
+            // ShortCode: générer UNE SEULE FOIS, puis ne plus changer.
+            if (!merchant.shortCode) {
+                const lastMerchant = await Merchant.findOne({ shortCode: { $exists: true } }).sort({ shortCode: -1 });
+                let newShortCode = "003063";
+                if (lastMerchant && lastMerchant.shortCode) {
+                    const incremented = (parseInt(lastMerchant.shortCode, 10) + 1).toString().padStart(6, '0');
+                    newShortCode = incremented;
+                }
+                merchant.shortCode = newShortCode;
+            }
+
+            // S’assure que tous les opérateurs ont le même ShortCode.
+            merchant.operators.forEach((operator) => {
+                operator.shortCode = merchant.shortCode;
             });
 
             // === Intégration CPS ===
@@ -482,48 +496,70 @@ router.post(
             const productId = process.env.CPS_PRODUCT_ID || '45071';
             const remark = process.env.CPS_REMARK || 'Enrollment Admin Final Validation';
 
-            // 1) CreateTopOrg
-            const topOrgResp = await cpsCreateTopOrg({
-                url: CPS_URL,
-                payload: {
-                    thirdPartyId: process.env.CPS_THIRD_PARTY_ID,
-                    password: process.env.CPS_PASSWORD,
-                    initiatorIdentifierType: process.env.CPS_INITIATOR_IDENTIFIER_TYPE,
-                    initiatorIdentifier: process.env.CPS_INITIATOR_IDENTIFIER,
-                    initiatorSecurityCredential: process.env.CPS_INITIATOR_SECURITY_CREDENTIAL,
-                    receiverIdentifierType: process.env.CPS_RECEIVER_IDENTIFIER_TYPE,
-                    receiverIdentifier: process.env.CPS_RECEIVER_IDENTIFIER,
-                    shortCode: merchant.shortCode,
-                    organizationName: merchant.nom,
-                    msisdn: merchant.contact,
-                    productId,
-                    preferredNotificationLanguage,
-                    preferredNotificationChannel,
-                    countryValue,
-                    cityValue,
-                    nifValue,
-                    commercialRegisterValue,
-                    organizationTypeValue,
-                    contactTypeValue,
-                    contactFirstNameValue,
-                    remark,
-                },
-            });
+            // 1) CreateTopOrg (idempotent): si déjà OK, on ne rejoue pas.
+            const topOrgAlreadyOk = String(merchant.cpsIntegration?.createTopOrg?.resultCode) === '0';
+            if (!topOrgAlreadyOk) {
+                const topOrgResp = await cpsCreateTopOrg({
+                    url: CPS_URL,
+                    payload: {
+                        thirdPartyId: process.env.CPS_THIRD_PARTY_ID,
+                        password: process.env.CPS_PASSWORD,
+                        initiatorIdentifierType: process.env.CPS_INITIATOR_IDENTIFIER_TYPE,
+                        initiatorIdentifier: process.env.CPS_INITIATOR_IDENTIFIER,
+                        initiatorSecurityCredential: process.env.CPS_INITIATOR_SECURITY_CREDENTIAL,
+                        receiverIdentifierType: process.env.CPS_RECEIVER_IDENTIFIER_TYPE,
+                        receiverIdentifier: process.env.CPS_RECEIVER_IDENTIFIER,
+                        shortCode: merchant.shortCode,
+                        organizationName: merchant.nom,
+                        msisdn: merchant.contact,
+                        productId,
+                        preferredNotificationLanguage,
+                        preferredNotificationChannel,
+                        countryValue,
+                        cityValue,
+                        nifValue,
+                        commercialRegisterValue,
+                        organizationTypeValue,
+                        contactTypeValue,
+                        contactFirstNameValue,
+                        remark,
+                    },
+                });
 
-            merchant.cpsIntegration.createTopOrg = {
-                resultCode: topOrgResp.resultCode,
-                resultDesc: topOrgResp.resultDesc,
-                conversationId: topOrgResp.conversationId,
-                requestXml: topOrgResp.requestXml,
-                rawResponse: topOrgResp.responseXml,
-                completedAt: Date.now(),
-            };
+                merchant.cpsIntegration.createTopOrg = {
+                    resultCode: topOrgResp.resultCode,
+                    resultDesc: topOrgResp.resultDesc,
+                    conversationId: topOrgResp.conversationId,
+                    requestXml: topOrgResp.requestXml,
+                    rawResponse: topOrgResp.responseXml,
+                    completedAt: Date.now(),
+                };
 
-            if (String(topOrgResp.resultCode) !== '0') {
-                merchant.cpsIntegration.status = 'failed';
-                merchant.cpsIntegration.error = `CreateTopOrg échec: ${topOrgResp.resultCode || 'N/A'} ${topOrgResp.resultDesc || ''}`.trim();
-                await merchant.save();
-                return res.status(502).json({ msg: merchant.cpsIntegration.error, merchant });
+                const topOrgCode = String(topOrgResp.resultCode || '');
+                const topOrgDesc = String(topOrgResp.resultDesc || '');
+                const alreadyExistsCodes = String(process.env.CPS_TOPORG_ALREADY_EXISTS_CODES || '')
+                    .split(',')
+                    .map((s) => s.trim())
+                    .filter(Boolean);
+                const alreadyExistsByText =
+                    /already\s*exist|already\s*exists|exist\s*already|duplicate|short\s*code|organization\s*already/i.test(
+                        topOrgDesc
+                    );
+                const isAlreadyExists =
+                    (alreadyExistsCodes.length > 0 && alreadyExistsCodes.includes(topOrgCode)) ||
+                    (alreadyExistsCodes.length === 0 && alreadyExistsByText);
+
+                // Si le TopOrg existe déjà côté CPS, on continue vers CreateOrgOperator
+                // (idempotence / retry opérateur) au lieu de bloquer l'application.
+                if (topOrgCode !== '0' && !isAlreadyExists) {
+                    merchant.cpsIntegration.status = 'failed';
+                    merchant.cpsIntegration.error = `CreateTopOrg échec: ${topOrgResp.resultCode || 'N/A'} ${topOrgResp.resultDesc || ''}`.trim();
+                    await merchant.save();
+                    return res.status(502).json({ msg: merchant.cpsIntegration.error, merchant });
+                }
+                if (topOrgCode !== '0' && isAlreadyExists) {
+                    merchant.cpsIntegration.error = '';
+                }
             }
 
             // 2) CreateOrgOperator (pour chaque opérateur)
@@ -531,6 +567,10 @@ router.post(
             const roleId = process.env.CPS_OPERATOR_ROLE_ID || '500000000000011413';
             const roleEffectiveDate = process.env.CPS_OPERATOR_ROLE_EFFECTIVE_DATE || todayYYYYMMDD();
             const roleExpiryDate = process.env.CPS_OPERATOR_ROLE_EXPIRY_DATE || '20990320';
+            const authTypeEnv = (process.env.CPS_OPERATOR_AUTH_TYPE || 'HANDSET').trim();
+            // CPS (SYNCAPI) attend souvent un code (ex: "02") même si l’UI affiche "HANDSET".
+            const authenticationType =
+                authTypeEnv.toUpperCase() === 'HANDSET' ? '02' : authTypeEnv;
             const operatorResults = [];
 
             for (const op of merchant.operators || []) {
@@ -546,6 +586,61 @@ router.post(
                     return res.status(400).json({ msg: errMsg, merchant });
                 }
 
+                // Idempotence opérateur: si déjà présent dans l’org, on skip CreateOrgOperator.
+                const queryOperatorIdentifierType = process.env.CPS_QUERY_OPERATOR_IDENTIFIER_TYPE || '12';
+                const queryOperatorIdentifier = process.env.CPS_QUERY_OPERATOR_IDENTIFIER_SOURCE === 'operatorId'
+                    ? operatorId
+                    : operatorMsisdn;
+
+                const queryResp = await cpsQueryOrgOperatorInfo({
+                    url: CPS_URL,
+                    payload: {
+                        thirdPartyId: process.env.CPS_THIRD_PARTY_ID,
+                        password: process.env.CPS_PASSWORD,
+                        initiatorIdentifierType: process.env.CPS_INITIATOR_IDENTIFIER_TYPE,
+                        initiatorIdentifier: process.env.CPS_INITIATOR_IDENTIFIER,
+                        initiatorSecurityCredential: process.env.CPS_INITIATOR_SECURITY_CREDENTIAL,
+                        operatorIdentifierType: queryOperatorIdentifierType,
+                        operatorIdentifier: queryOperatorIdentifier,
+                        shortCode: merchant.shortCode,
+                    },
+                });
+
+                const notFoundCodes = String(process.env.CPS_QUERY_OPERATOR_NOT_FOUND_CODES || '')
+                    .split(',')
+                    .map((s) => s.trim())
+                    .filter(Boolean);
+                const queryCode = String(queryResp.resultCode || '');
+                const queryDesc = String(queryResp.resultDesc || '');
+                const looksNotFound = /not\s*exist|not\s*found|no\s*record/i.test(queryDesc);
+                const operatorExists = queryCode === '0';
+
+                if (operatorExists) {
+                    operatorResults.push({
+                        msisdn: operatorMsisdn,
+                        operatorId,
+                        resultCode: '0',
+                        resultDesc: 'Operator already exists (QueryOrgOperatorInfo).',
+                        conversationId: queryResp.conversationId,
+                        requestXml: queryResp.requestXml,
+                        rawResponse: queryResp.responseXml,
+                        completedAt: Date.now(),
+                    });
+                    continue;
+                }
+
+                // Si la requête Query échoue pour une raison autre que "not found", on stoppe.
+                const isNotFound =
+                    (notFoundCodes.length > 0 && notFoundCodes.includes(queryCode)) ||
+                    (notFoundCodes.length === 0 && looksNotFound);
+                if (!isNotFound && queryCode) {
+                    merchant.cpsIntegration.createOrgOperator = { results: operatorResults };
+                    merchant.cpsIntegration.status = 'failed';
+                    merchant.cpsIntegration.error = `QueryOrgOperatorInfo échec (${queryOperatorIdentifier}): ${queryCode} ${queryDesc}`.trim();
+                    await merchant.save();
+                    return res.status(502).json({ msg: merchant.cpsIntegration.error, merchant });
+                }
+
                 const orgOpResp = await cpsCreateOrgOperator({
                     url: CPS_URL,
                     payload: {
@@ -556,7 +651,7 @@ router.post(
                         initiatorSecurityCredential: process.env.CPS_INITIATOR_SECURITY_CREDENTIAL,
                         shortCode: merchant.shortCode,
                         languageCode: process.env.CPS_OPERATOR_LANGUAGE_CODE || 'en',
-                        authenticationType: process.env.CPS_OPERATOR_AUTH_TYPE || 'HANDSET',
+                        authenticationType,
                         userName: process.env.CPS_OPERATOR_USERNAME || operatorMsisdn,
                         operatorId,
                         msisdn: operatorMsisdn,
