@@ -13,7 +13,7 @@ const xlsx = require('xlsx'); // <--- Assurez-vous que cette ligne est bien pré
 const moment = require('moment');
 const crypto = require('crypto');
 const { REJETE_DEFINITIF, isMerchantLocked } = require('../utils/merchantStatus');
-const { cpsCreateTopOrg, cpsCreateOrgOperator, cpsQueryOrgOperatorInfo, todayYYYYMMDD } = require('../services/cpsSyncApi');
+const { cpsCreateTopOrg, cpsCreateOrgOperator, cpsQueryOrgOperatorInfo, cpsQueryCustomerInfo, todayYYYYMMDD } = require('../services/cpsSyncApi');
 
 function lockedEnrollmentResponse(res) {
     return res.status(403).json({
@@ -424,6 +424,68 @@ router.post(
                 });
             }
 
+            // === Pré-check obligatoire: QueryCustomerInfo sur MSISDN opérateur ===
+            // Objectif: si un numéro opérateur est déjà un compte Moov Money,
+            // on rejette le dossier et on NE crée ni shortCode, ni TopOrg, ni opérateur.
+            const CPS_URL = process.env.CPS_URL;
+            if (CPS_URL) {
+                const requiredForQueryCustomer = [
+                    'CPS_THIRD_PARTY_ID',
+                    'CPS_PASSWORD',
+                    'CPS_INITIATOR_IDENTIFIER_TYPE',
+                    'CPS_INITIATOR_IDENTIFIER',
+                    'CPS_INITIATOR_SECURITY_CREDENTIAL',
+                ];
+                const missingForQuery = requiredForQueryCustomer.filter((k) => !process.env[k]);
+                if (!missingForQuery.length) {
+                    const queryCustomerUrl = process.env.CPS_CUSTOMERINFO_URL || CPS_URL;
+                    const receiverIdType = process.env.CPS_QUERY_CUSTOMER_IDENTIFIER_TYPE || '1';
+                    const operatorsToCheck = merchant.operators || [];
+
+                    for (const op of operatorsToCheck) {
+                        const msisdn = op.telephone;
+                        if (!msisdn) continue;
+
+                        const q = await cpsQueryCustomerInfo({
+                            url: queryCustomerUrl,
+                            payload: {
+                                thirdPartyId: process.env.CPS_THIRD_PARTY_ID,
+                                password: process.env.CPS_PASSWORD,
+                                initiatorIdentifierType: process.env.CPS_INITIATOR_IDENTIFIER_TYPE,
+                                initiatorIdentifier: process.env.CPS_INITIATOR_IDENTIFIER,
+                                initiatorSecurityCredential: process.env.CPS_INITIATOR_SECURITY_CREDENTIAL,
+                                receiverIdentifierType: receiverIdType,
+                                receiverIdentifier: msisdn,
+                            },
+                        });
+
+                        const code = String(q.resultCode || '');
+                        const desc = String(q.resultDesc || '');
+                        // Sur vos retours, un compte existant renvoie ResultCode=0 et QueryCustomerInfoResult.
+                        const looksExisting =
+                            code === '0' &&
+                            /QueryCustomerInfoResult|CustomerBasicData|Registered Customer|PrimaryMSISDN/i.test(
+                                q.responseXml || ''
+                            );
+
+                        if (looksExisting) {
+                            const reason = `Rejeté : le numéro opérateur ${msisdn} est déjà utilisé par un compte Moov Money. Veuillez demander au client un numéro non utilisé (sans compte Moov Money), puis refaire l’enrôlement.`;
+                            merchant.statut = 'rejeté';
+                            merchant.rejectionReason = reason;
+                            merchant.lastModifiedBy = req.user.id;
+                            merchant.lastModifiedAt = Date.now();
+
+                            // On remet l'intégration CPS à l'état neutre (aucune création).
+                            merchant.cpsIntegration = merchant.cpsIntegration || {};
+                            merchant.cpsIntegration.status = 'failed';
+                            merchant.cpsIntegration.error = reason;
+                            await merchant.save();
+                            return res.status(400).json({ msg: reason, merchant });
+                        }
+                    }
+                }
+            }
+
             // ShortCode: générer UNE SEULE FOIS, puis ne plus changer.
             if (!merchant.shortCode) {
                 const lastMerchant = await Merchant.findOne({ shortCode: { $exists: true } }).sort({ shortCode: -1 });
@@ -442,7 +504,6 @@ router.post(
 
             // === Intégration CPS ===
             // Si la config CPS n'est pas définie, on garde l’ancien comportement (validation locale).
-            const CPS_URL = process.env.CPS_URL;
             if (!CPS_URL) {
                 merchant.statut = 'validé';
                 merchant.validatedAt = Date.now();

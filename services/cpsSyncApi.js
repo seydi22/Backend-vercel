@@ -366,6 +366,57 @@ function buildQueryOrgOperatorInfoXml({
 </soapenv:Envelope>`;
 }
 
+function buildQueryCustomerInfoXml({
+  thirdPartyId,
+  password,
+  initiatorIdentifierType,
+  initiatorIdentifier,
+  initiatorSecurityCredential,
+  receiverIdentifierType,
+  receiverIdentifier,
+  version = '1.0',
+}) {
+  const timestamp = nowTimestamp();
+  const originatorConversationId = `S_${timestamp}`;
+
+  const callerType = process.env.CPS_CALLER_TYPE || '2';
+  const keyOwner = process.env.CPS_KEY_OWNER || '1';
+
+  return `<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:api="http://cps.huawei.com/synccpsinterface/api_requestmgr" xmlns:req="http://cps.huawei.com/synccpsinterface/request" xmlns:com="http://cps.huawei.com/synccpsinterface/common" xmlns:cus="http://cps.huawei.com/cpsinterface/customizedrequest">
+  <soapenv:Header/>
+  <soapenv:Body>
+    <api:Request>
+      <req:Header>
+        <req:Version>${escapeXml(version)}</req:Version>
+        <req:CommandID>QueryCustomerInfo</req:CommandID>
+        <req:OriginatorConversationID>${escapeXml(originatorConversationId)}</req:OriginatorConversationID>
+        <req:Caller>
+          <req:CallerType>${escapeXml(callerType)}</req:CallerType>
+          <req:ThirdPartyID>${escapeXml(thirdPartyId)}</req:ThirdPartyID>
+          <req:Password>${escapeXml(password)}</req:Password>
+        </req:Caller>
+        <req:KeyOwner>${escapeXml(keyOwner)}</req:KeyOwner>
+        <req:Timestamp>${escapeXml(timestamp)}</req:Timestamp>
+      </req:Header>
+      <req:Body>
+        <req:Identity>
+          <req:Initiator>
+            <req:IdentifierType>${escapeXml(initiatorIdentifierType)}</req:IdentifierType>
+            <req:Identifier>${escapeXml(initiatorIdentifier)}</req:Identifier>
+            <req:SecurityCredential>${escapeXml(initiatorSecurityCredential)}</req:SecurityCredential>
+          </req:Initiator>
+          <req:ReceiverParty>
+            <req:IdentifierType>${escapeXml(receiverIdentifierType)}</req:IdentifierType>
+            <req:Identifier>${escapeXml(receiverIdentifier)}</req:Identifier>
+          </req:ReceiverParty>
+        </req:Identity>
+        <req:QueryCustomerInfoRequest/>
+      </req:Body>
+    </api:Request>
+  </soapenv:Body>
+</soapenv:Envelope>`;
+}
+
 async function cpsCreateTopOrg({ url, payload }) {
   const xml = buildCreateTopOrgXml(payload);
   const soapActionMode = (process.env.CPS_SOAP_ACTION_MODE || 'command').toLowerCase();
@@ -405,10 +456,18 @@ async function cpsQueryOrgOperatorInfo({ url, payload }) {
   return { requestXml: xml, httpStatus: resp.status, responseXml: resp.body, ...parsed };
 }
 
+async function cpsQueryCustomerInfo({ url, payload }) {
+  const xml = buildQueryCustomerInfoXml(payload);
+  const resp = await postSoap({ url, xml, timeoutMs: payload.timeoutMs || 60000 });
+  const parsed = parseSoapResult(resp.body);
+  return { requestXml: xml, httpStatus: resp.status, responseXml: resp.body, ...parsed };
+}
+
 module.exports = {
   cpsCreateTopOrg,
   cpsCreateOrgOperator,
   cpsQueryOrgOperatorInfo,
+  cpsQueryCustomerInfo,
   todayYYYYMMDD,
 };
 
