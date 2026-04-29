@@ -41,7 +41,7 @@ const merchantSchema = new mongoose.Schema({
     },
     photoEnseigneUrl: { type: String, required: true },
 
-    statut: { type: String, enum: ['en attente', 'validé_par_superviseur', 'validé', 'rejeté', 'rejeté_définitivement', 'livré'], default: 'en attente' },
+    statut: { type: String, enum: ['en attente', 'validé_par_superviseur', 'validé', 'cree', 'rejeté', 'rejeté_définitivement', 'livré'], default: 'en attente' },
     agentRecruteurId: { type: mongoose.Schema.Types.ObjectId, ref: 'Agent' },
     createdAt: { type: Date, default: Date.now },
     validatedAt: { type: Date },
@@ -61,7 +61,37 @@ const merchantSchema = new mongoose.Schema({
     deliveredBy: { type: mongoose.Schema.Types.ObjectId, ref: 'Agent' },
 
     // Tableau pour stocker les opérateurs liés à ce marchand
-    operators: [operatorSchema] 
+    operators: [operatorSchema],
+
+    /**
+     * Suivi d’intégration CPS (Huawei SYNCAPI).
+     * On garde volontairement un format souple: utile pour debug sans casser le workflow.
+     */
+    cpsIntegration: {
+        status: { type: String, enum: ['idle', 'in_progress', 'success', 'failed'], default: 'idle' },
+        lastAttemptAt: { type: Date },
+        error: { type: String },
+        createTopOrg: {
+            resultCode: { type: String },
+            resultDesc: { type: String },
+            conversationId: { type: String },
+            requestXml: { type: String },
+            rawResponse: { type: String },
+            completedAt: { type: Date },
+        },
+        createOrgOperator: {
+            results: [{
+                msisdn: { type: String },
+                operatorId: { type: String },
+                resultCode: { type: String },
+                resultDesc: { type: String },
+                conversationId: { type: String },
+                requestXml: { type: String },
+                rawResponse: { type: String },
+                completedAt: { type: Date },
+            }],
+        },
+    },
 });
 
 module.exports = mongoose.model('Merchant', merchantSchema);

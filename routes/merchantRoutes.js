@@ -13,6 +13,7 @@ const xlsx = require('xlsx'); // <--- Assurez-vous que cette ligne est bien pré
 const moment = require('moment');
 const crypto = require('crypto');
 const { REJETE_DEFINITIF, isMerchantLocked } = require('../utils/merchantStatus');
+const { cpsCreateTopOrg, cpsCreateOrgOperator, todayYYYYMMDD } = require('../services/cpsSyncApi');
 
 function lockedEnrollmentResponse(res) {
     return res.status(403).json({
@@ -228,9 +229,10 @@ router.get(
         try {
             const { statut, search, agentId, sortBy, sortOrder } = req.query;
 
-            // L'admin ne doit voir que les marchands qui ont passé l'étape superviseur.
+            // L'admin ne doit voir que les marchands qui ont passé l'étape superviseur
+            // ou qui ont été créés dans le CPS (statut 'cree').
             const filter = {
-                statut: { $in: ['validé_par_superviseur', 'validé', 'livré', REJETE_DEFINITIF] }
+                statut: { $in: ['validé_par_superviseur', 'validé', 'cree', 'livré', REJETE_DEFINITIF] }
             };
 
             // Si un statut est passé en query par l'admin, on s'assure qu'il est autorisé
@@ -287,6 +289,7 @@ router.get(
                 'en attente': 0,
                 'validé_par_superviseur': 0,
                 'validé': 0,
+                'cree': 0,
                 'rejeté': 0,
                 [REJETE_DEFINITIF]: 0,
                 'livré': 0,
@@ -417,15 +420,186 @@ router.post(
                 newShortCode = incremented;
             }
 
-            // Mise à jour du statut sans écraser les données du superviseur
+            // Prépare le ShortCode (requis pour CPS)
             merchant.shortCode = newShortCode;
-            merchant.statut = 'validé';
-            merchant.validatedAt = Date.now();
-            merchant.rejectionReason = '';
-
             merchant.operators.forEach(operator => {
                 operator.shortCode = newShortCode;
             });
+
+            // === Intégration CPS ===
+            // Si la config CPS n'est pas définie, on garde l’ancien comportement (validation locale).
+            const CPS_URL = process.env.CPS_URL;
+            if (!CPS_URL) {
+                merchant.statut = 'validé';
+                merchant.validatedAt = Date.now();
+                merchant.rejectionReason = '';
+                await merchant.save();
+
+                if (merchant.agentRecruteurId) {
+                    await Agent.findByIdAndUpdate(merchant.agentRecruteurId, { $inc: { 'performance.validations': 1 } });
+                }
+
+                return res.json({
+                    msg: 'Marchand validé localement (CPS_URL non configurée).',
+                    merchant,
+                });
+            }
+
+            merchant.cpsIntegration = merchant.cpsIntegration || {};
+            merchant.cpsIntegration.status = 'in_progress';
+            merchant.cpsIntegration.lastAttemptAt = Date.now();
+            merchant.cpsIntegration.error = '';
+            await merchant.save();
+
+            const requiredEnv = [
+                'CPS_THIRD_PARTY_ID',
+                'CPS_PASSWORD',
+                'CPS_INITIATOR_IDENTIFIER_TYPE',
+                'CPS_INITIATOR_IDENTIFIER',
+                'CPS_INITIATOR_SECURITY_CREDENTIAL',
+                'CPS_RECEIVER_IDENTIFIER_TYPE',
+                'CPS_RECEIVER_IDENTIFIER',
+            ];
+            const missing = requiredEnv.filter((k) => !process.env[k]);
+            if (missing.length) {
+                merchant.cpsIntegration.status = 'failed';
+                merchant.cpsIntegration.error = `Variables d'environnement manquantes: ${missing.join(', ')}`;
+                await merchant.save();
+                return res.status(500).json({ msg: merchant.cpsIntegration.error, merchant });
+            }
+
+            // Mapping KYC (valeurs techniques validées dans Postman)
+            const countryValue = process.env.CPS_COUNTRY_VALUE || 'MRT';
+            const cityValue = merchant.ville;
+            const nifValue = merchant.nif || '';
+            const commercialRegisterValue = merchant.rc || '';
+            // Valeurs fixes (référence: export marchands)
+            const organizationTypeValue = process.env.CPS_ORG_TYPE_VALUE || 'MERCHANT';
+            const contactTypeValue = process.env.CPS_CONTACT_TYPE_VALUE || '02';
+            const contactFirstNameValue = merchant.prenomGerant || '';
+            const preferredNotificationLanguage = process.env.CPS_PREFERRED_LANG || 'fr';
+            const preferredNotificationChannel = process.env.CPS_PREFERRED_CHANNEL || '1001';
+            const productId = process.env.CPS_PRODUCT_ID || '45071';
+            const remark = process.env.CPS_REMARK || 'Enrollment Admin Final Validation';
+
+            // 1) CreateTopOrg
+            const topOrgResp = await cpsCreateTopOrg({
+                url: CPS_URL,
+                payload: {
+                    thirdPartyId: process.env.CPS_THIRD_PARTY_ID,
+                    password: process.env.CPS_PASSWORD,
+                    initiatorIdentifierType: process.env.CPS_INITIATOR_IDENTIFIER_TYPE,
+                    initiatorIdentifier: process.env.CPS_INITIATOR_IDENTIFIER,
+                    initiatorSecurityCredential: process.env.CPS_INITIATOR_SECURITY_CREDENTIAL,
+                    receiverIdentifierType: process.env.CPS_RECEIVER_IDENTIFIER_TYPE,
+                    receiverIdentifier: process.env.CPS_RECEIVER_IDENTIFIER,
+                    shortCode: merchant.shortCode,
+                    organizationName: merchant.nom,
+                    msisdn: merchant.contact,
+                    productId,
+                    preferredNotificationLanguage,
+                    preferredNotificationChannel,
+                    countryValue,
+                    cityValue,
+                    nifValue,
+                    commercialRegisterValue,
+                    organizationTypeValue,
+                    contactTypeValue,
+                    contactFirstNameValue,
+                    remark,
+                },
+            });
+
+            merchant.cpsIntegration.createTopOrg = {
+                resultCode: topOrgResp.resultCode,
+                resultDesc: topOrgResp.resultDesc,
+                conversationId: topOrgResp.conversationId,
+                requestXml: topOrgResp.requestXml,
+                rawResponse: topOrgResp.responseXml,
+                completedAt: Date.now(),
+            };
+
+            if (String(topOrgResp.resultCode) !== '0') {
+                merchant.cpsIntegration.status = 'failed';
+                merchant.cpsIntegration.error = `CreateTopOrg échec: ${topOrgResp.resultCode || 'N/A'} ${topOrgResp.resultDesc || ''}`.trim();
+                await merchant.save();
+                return res.status(502).json({ msg: merchant.cpsIntegration.error, merchant });
+            }
+
+            // 2) CreateOrgOperator (pour chaque opérateur)
+            // Valeurs fixes (référence: export opérateurs)
+            const roleId = process.env.CPS_OPERATOR_ROLE_ID || '500000000000011413';
+            const roleEffectiveDate = process.env.CPS_OPERATOR_ROLE_EFFECTIVE_DATE || todayYYYYMMDD();
+            const roleExpiryDate = process.env.CPS_OPERATOR_ROLE_EXPIRY_DATE || '20990320';
+            const operatorResults = [];
+
+            for (const op of merchant.operators || []) {
+                const operatorMsisdn = op.telephone;
+                const operatorId = op.telephone;
+                const idNumber = String(op.nni || '').trim();
+
+                if (!/^\d+$/.test(idNumber)) {
+                    const errMsg = `NNI opérateur invalide (doit être numérique): ${idNumber || 'N/A'}`;
+                    merchant.cpsIntegration.status = 'failed';
+                    merchant.cpsIntegration.error = errMsg;
+                    await merchant.save();
+                    return res.status(400).json({ msg: errMsg, merchant });
+                }
+
+                const orgOpResp = await cpsCreateOrgOperator({
+                    url: CPS_URL,
+                    payload: {
+                        thirdPartyId: process.env.CPS_THIRD_PARTY_ID,
+                        password: process.env.CPS_PASSWORD,
+                        initiatorIdentifierType: process.env.CPS_INITIATOR_IDENTIFIER_TYPE,
+                        initiatorIdentifier: process.env.CPS_INITIATOR_IDENTIFIER,
+                        initiatorSecurityCredential: process.env.CPS_INITIATOR_SECURITY_CREDENTIAL,
+                        shortCode: merchant.shortCode,
+                        languageCode: process.env.CPS_OPERATOR_LANGUAGE_CODE || 'en',
+                        authenticationType: process.env.CPS_OPERATOR_AUTH_TYPE || 'HANDSET',
+                        userName: process.env.CPS_OPERATOR_USERNAME || operatorMsisdn,
+                        operatorId,
+                        msisdn: operatorMsisdn,
+                        roleId,
+                        roleEffectiveDate,
+                        roleExpiryDate,
+                        firstName: op.prenom || '',
+                        preferredNotificationChannel,
+                        notificationMsisdn: operatorMsisdn,
+                        idTypeValue: process.env.CPS_OPERATOR_ID_TYPE || '01',
+                        idNumber,
+                        documentReceived: process.env.CPS_OPERATOR_DOCUMENT_RECEIVED || 'Y',
+                    },
+                });
+
+                operatorResults.push({
+                    msisdn: operatorMsisdn,
+                    operatorId,
+                    resultCode: orgOpResp.resultCode,
+                    resultDesc: orgOpResp.resultDesc,
+                    conversationId: orgOpResp.conversationId,
+                    requestXml: orgOpResp.requestXml,
+                    rawResponse: orgOpResp.responseXml,
+                    completedAt: Date.now(),
+                });
+
+                if (String(orgOpResp.resultCode) !== '0') {
+                    merchant.cpsIntegration.createOrgOperator = { results: operatorResults };
+                    merchant.cpsIntegration.status = 'failed';
+                    merchant.cpsIntegration.error = `CreateOrgOperator échec (${operatorMsisdn}): ${orgOpResp.resultCode || 'N/A'} ${orgOpResp.resultDesc || ''}`.trim();
+                    await merchant.save();
+                    return res.status(502).json({ msg: merchant.cpsIntegration.error, merchant });
+                }
+            }
+
+            merchant.cpsIntegration.createOrgOperator = { results: operatorResults };
+            merchant.cpsIntegration.status = 'success';
+            merchant.cpsIntegration.error = '';
+
+            // === Finalisation workflow ===
+            merchant.statut = 'cree';
+            merchant.validatedAt = Date.now();
+            merchant.rejectionReason = '';
 
             await merchant.save();
 
@@ -433,7 +607,7 @@ router.post(
                 await Agent.findByIdAndUpdate(merchant.agentRecruteurId, { $inc: { 'performance.validations': 1 } });
             }
 
-            res.json({ msg: 'Marchand validé avec succès.', merchant });
+            return res.json({ msg: 'Marchand créé dans CPS avec succès.', merchant });
         } catch (err) {
             console.error(err.message);
             res.status(500).send('Erreur du serveur.');
