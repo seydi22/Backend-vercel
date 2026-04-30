@@ -402,7 +402,8 @@ router.post(
     [authMiddleware, roleMiddleware(['admin','superviseur'])],
     async (req, res) => {
         try {
-            const merchant = await Merchant.findById(req.params.id);
+            // Récupération initiale
+            let merchant = await Merchant.findById(req.params.id);
             if (!merchant) {
                 return res.status(404).json({ msg: 'Marchand non trouvé.' });
             }
@@ -416,11 +417,32 @@ router.post(
                 return res.status(400).json({ msg: 'Le marchand n est pas en attente de validation finale.' });
             }
 
-            // Empêche les doubles clics / appels concurrents (idempotence)
-            if (merchant.cpsIntegration?.status === 'in_progress') {
+            // Verrouillage atomique (anti double-clic / anti double requêtes concurrentes)
+            // IMPORTANT: empêche la création de plusieurs TopOrg pour un même marchand.
+            merchant = await Merchant.findOneAndUpdate(
+                {
+                    _id: req.params.id,
+                    statut: 'validé_par_superviseur',
+                    $or: [
+                        { 'cpsIntegration.status': { $ne: 'in_progress' } },
+                        { cpsIntegration: { $exists: false } },
+                    ],
+                },
+                {
+                    $set: {
+                        'cpsIntegration.status': 'in_progress',
+                        'cpsIntegration.lastAttemptAt': Date.now(),
+                        'cpsIntegration.error': '',
+                    },
+                },
+                { new: true }
+            );
+
+            if (!merchant) {
+                const current = await Merchant.findById(req.params.id);
                 return res.status(409).json({
                     msg: 'Intégration CPS déjà en cours pour ce marchand. Réessayez dans quelques secondes.',
-                    merchant,
+                    merchant: current,
                 });
             }
 
@@ -521,11 +543,7 @@ router.post(
                 });
             }
 
-            merchant.cpsIntegration = merchant.cpsIntegration || {};
-            merchant.cpsIntegration.status = 'in_progress';
-            merchant.cpsIntegration.lastAttemptAt = Date.now();
-            merchant.cpsIntegration.error = '';
-            await merchant.save();
+            // cpsIntegration.status/lastAttemptAt/error sont déjà posés via le verrou atomique ci-dessus.
 
             const requiredEnv = [
                 'CPS_THIRD_PARTY_ID',
