@@ -424,11 +424,12 @@ router.post(
                 });
             }
 
-            // === Pré-check obligatoire: QueryCustomerInfo sur MSISDN opérateur ===
-            // Objectif: si un numéro opérateur est déjà un compte Moov Money,
-            // on rejette le dossier et on NE crée ni shortCode, ni TopOrg, ni opérateur.
+            // === Pré-check (optionnel): QueryCustomerInfo sur MSISDN opérateur ===
+            // Ancien workflow: rejeter si le numéro a déjà un compte Moov Money.
+            // Nouveau workflow: par défaut on NE rejette PAS et on crée l'opérateur sans MSISDN.
             const CPS_URL = process.env.CPS_URL;
-            if (CPS_URL) {
+            const enableCustomerPrecheck = String(process.env.CPS_PRECHECK_CUSTOMERINFO || '').trim() === '1';
+            if (CPS_URL && enableCustomerPrecheck) {
                 const requiredForQueryCustomer = [
                     'CPS_THIRD_PARTY_ID',
                     'CPS_PASSWORD',
@@ -649,9 +650,9 @@ router.post(
 
                 // Idempotence opérateur: si déjà présent dans l’org, on skip CreateOrgOperator.
                 const queryOperatorIdentifierType = process.env.CPS_QUERY_OPERATOR_IDENTIFIER_TYPE || '12';
-                const queryOperatorIdentifier = process.env.CPS_QUERY_OPERATOR_IDENTIFIER_SOURCE === 'operatorId'
-                    ? operatorId
-                    : operatorMsisdn;
+                // Si on ne passe pas MSISDN au CPS (workflow prod), on query plutôt sur OperatorID.
+                const querySource = process.env.CPS_QUERY_OPERATOR_IDENTIFIER_SOURCE || 'operatorId';
+                const queryOperatorIdentifier = querySource === 'msisdn' ? operatorMsisdn : operatorId;
 
                 const queryResp = await cpsQueryOrgOperatorInfo({
                     url: CPS_URL,
@@ -717,12 +718,14 @@ router.post(
                         // Par défaut on laisse vide et on permet de forcer via .env.
                         userName: process.env.CPS_OPERATOR_USERNAME ?? '',
                         operatorId,
-                        msisdn: operatorMsisdn,
+                        // Nouveau workflow prod: ne pas passer le MSISDN à la création d'opérateur.
+                        msisdn: process.env.CPS_OPERATOR_INCLUDE_MSISDN === '1' ? operatorMsisdn : '',
                         roleId,
                         roleEffectiveDate,
                         roleExpiryDate,
                         firstName: op.prenom || '',
                         preferredNotificationChannel,
+                        // Obligatoire: numéro pour recevoir les notifications (même si on n'envoie pas MSISDN).
                         notificationMsisdn: operatorMsisdn,
                         idTypeValue: process.env.CPS_OPERATOR_ID_TYPE || '01',
                         idNumber,

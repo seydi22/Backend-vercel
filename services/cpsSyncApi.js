@@ -236,6 +236,12 @@ function buildCreateOrgOperatorXml({
     process.env.CPS_RESULT_URL || 'http://10.74.189.145:8087/mockAPIResultMgrBinding';
   const roleExpiry = roleExpiryDate || process.env.CPS_OPERATOR_ROLE_EXPIRY_DATE || '20990320';
 
+  const msisdnXml = msisdn ? `<com:MSISDN>${escapeXml(msisdn)}</com:MSISDN>` : ``;
+  const notificationMsisdnField = `<req:AddField>
+              <com:KYCName>[KYC][Contact Details][Notification Receiving MSISDN]</com:KYCName>
+              <com:KYCValue>${escapeXml(notificationMsisdn)}</com:KYCValue>
+            </req:AddField>`;
+
   return `<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:api="http://cps.huawei.com/synccpsinterface/api_requestmgr" xmlns:req="http://cps.huawei.com/synccpsinterface/request" xmlns:com="http://cps.huawei.com/synccpsinterface/common" xmlns:cus="http://cps.huawei.com/cpsinterface/customizedrequest">
   <soapenv:Header/>
   <soapenv:Body>
@@ -276,7 +282,7 @@ function buildCreateOrgOperatorXml({
               <com:AuthenticationType>${escapeXml(authenticationType)}</com:AuthenticationType>
               <com:UserName>${escapeXml(userName)}</com:UserName>
               <com:OperatorID>${escapeXml(operatorId)}</com:OperatorID>
-              <com:MSISDN>${escapeXml(msisdn)}</com:MSISDN>
+              ${msisdnXml}
             </com:AuthenticationItem>
           </req:AuthenticationTypeData>
           <req:SimpleKYCUpdateData>
@@ -288,10 +294,7 @@ function buildCreateOrgOperatorXml({
               <com:KYCName>[KYC][Contact Details][Preferred Notification Channel]</com:KYCName>
               <com:KYCValue>${escapeXml(preferredNotificationChannel)}</com:KYCValue>
             </req:AddField>
-            <req:AddField>
-              <com:KYCName>[KYC][Contact Details][Notification Receiving MSISDN]</com:KYCName>
-              <com:KYCValue>${escapeXml(notificationMsisdn)}</com:KYCValue>
-            </req:AddField>
+            ${notificationMsisdnField}
           </req:SimpleKYCUpdateData>
           <req:UpdateIDDetails>
             <req:AddIDRecord>
