@@ -653,6 +653,8 @@ router.post(
             const authenticationType =
                 authTypeEnv.toUpperCase() === 'HANDSET' ? '02' : authTypeEnv;
             const operatorResults = [];
+            let operatorHasNonZero = false;
+            let operatorHasManual = false;
 
             for (const op of merchant.operators || []) {
                 const operatorMsisdn = op.telephone;
@@ -727,6 +729,7 @@ router.post(
                 // Le marchand passe quand même en "cree" (TopOrg OK) et l'opérateur sera créé manuellement (export).
                 const existingCustomer = existingCustomerByMsisdn[operatorMsisdn] === true;
                 if (existingCustomer) {
+                    operatorHasManual = true;
                     operatorResults.push({
                         msisdn: operatorMsisdn,
                         operatorId,
@@ -815,17 +818,20 @@ router.post(
                 });
 
                 if (String(orgOpResp.resultCode) !== '0') {
-                    merchant.cpsIntegration.createOrgOperator = { results: operatorResults };
-                    merchant.cpsIntegration.status = 'failed';
-                    merchant.cpsIntegration.error = `CreateOrgOperator échec (${operatorMsisdn}): ${orgOpResp.resultCode || 'N/A'} ${orgOpResp.resultDesc || ''}`.trim();
-                    await merchant.save();
-                    return res.status(502).json({ msg: merchant.cpsIntegration.error, merchant });
+                    // Workflow simplifié: on ne bloque plus le marchand si l'opérateur échoue.
+                    // L'opérateur sera géré manuellement via export.
+                    operatorHasNonZero = true;
+                    continue;
                 }
             }
 
             merchant.cpsIntegration.createOrgOperator = { results: operatorResults };
+            // TopOrg a été créé (ou existait). Même si un opérateur échoue, le marchand peut passer "cree".
+            // On garde la trace via resultCode != 0 ou MANUAL.
             merchant.cpsIntegration.status = 'success';
-            merchant.cpsIntegration.error = '';
+            merchant.cpsIntegration.error = operatorHasNonZero || operatorHasManual
+                ? 'TopOrg OK. Certains opérateurs doivent être créés manuellement (export) ou ont échoué en création automatique.'
+                : '';
 
             // === Finalisation workflow ===
             merchant.statut = 'cree';
@@ -838,6 +844,12 @@ router.post(
                 await Agent.findByIdAndUpdate(merchant.agentRecruteurId, { $inc: { 'performance.validations': 1 } });
             }
 
+            if (operatorHasNonZero || operatorHasManual) {
+                return res.json({
+                    msg: 'Top organisation créée. Un ou plusieurs opérateurs sont à créer manuellement (via export/SP Portal).',
+                    merchant,
+                });
+            }
             return res.json({ msg: 'Marchand créé dans CPS avec succès.', merchant });
         } catch (err) {
             console.error(err.message);
