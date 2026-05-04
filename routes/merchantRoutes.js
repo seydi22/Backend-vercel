@@ -722,6 +722,24 @@ router.post(
                     return res.status(502).json({ msg: merchant.cpsIntegration.error, merchant });
                 }
 
+                // Workflow simplifié:
+                // si le MSISDN a déjà un compte Moov Money (pré-check), on ne crée pas l'opérateur via API.
+                // Le marchand passe quand même en "cree" (TopOrg OK) et l'opérateur sera créé manuellement (export).
+                const existingCustomer = existingCustomerByMsisdn[operatorMsisdn] === true;
+                if (existingCustomer) {
+                    operatorResults.push({
+                        msisdn: operatorMsisdn,
+                        operatorId,
+                        resultCode: 'MANUAL',
+                        resultDesc: 'Operator creation skipped: MSISDN already has an existing Moov Money account. Create operator manually via export/SP Portal.',
+                        conversationId: queryResp.conversationId,
+                        requestXml: queryResp.requestXml,
+                        rawResponse: queryResp.responseXml,
+                        completedAt: Date.now(),
+                    });
+                    continue;
+                }
+
                 const orgOpResp = await cpsCreateOrgOperator({
                     url: CPS_URL,
                     payload: {
@@ -1170,8 +1188,14 @@ router.get(
         try {
             const { startDate, endDate } = req.query;
             let filter = {
-                statut: 'validé',
-                "operators.0": { "$exists": true }
+                // Nouveau: exporter uniquement les opérateurs à créer manuellement
+                // (ceux dont CreateOrgOperator a échoué / a été skip "MANUAL", alors que le marchand est déjà "cree").
+                statut: 'cree',
+                "operators.0": { "$exists": true },
+                $or: [
+                    { 'cpsIntegration.createOrgOperator.results': { $exists: false } },
+                    { 'cpsIntegration.createOrgOperator.results.resultCode': { $ne: '0' } },
+                ],
             };
 
             if (startDate) {
@@ -1200,6 +1224,14 @@ router.get(
             merchants.forEach(merchant => {
                 if (merchant.operators && merchant.operators.length > 0) {
                     merchant.operators.forEach(op => {
+                        const results = merchant?.cpsIntegration?.createOrgOperator?.results || [];
+                        const r = results.find((x) => x && (x.msisdn === op.telephone || x.operatorId === op.telephone));
+                        const code = String(r?.resultCode || '');
+                        // On n'exporte QUE ceux à traiter manuellement (MANUAL) ou échecs (code != 0).
+                        // Si aucun résultat n'existe pour cet opérateur, on l'exporte aussi.
+                        const shouldExport = !code || code !== '0';
+                        if (!shouldExport) return;
+
                         exportData.push({
                             'Notification Language': 'fr',
                             'Organization ShortCode': merchant.shortCode || '',
