@@ -732,10 +732,34 @@ router.post(
                         initiatorSecurityCredential: process.env.CPS_INITIATOR_SECURITY_CREDENTIAL,
                         shortCode: merchant.shortCode,
                         languageCode: process.env.CPS_OPERATOR_LANGUAGE_CODE || 'en',
-                        authenticationType,
+                        // IMPORTANT:
+                        // Dans SP Portal, on peut créer un opérateur sans MSISDN (canal Web).
+                        // Si on garde HANDSET/02 sans MSISDN, CPS tente d'ajouter un device et peut échouer (IC13200).
+                        // => Quand MSISDN est omis, on bascule sur un authType alternatif (ex: WEB) configurable.
+                        authenticationType: (() => {
+                            const override = String(process.env.CPS_OPERATOR_INCLUDE_MSISDN || '').trim();
+                            const msisdnOmitted =
+                                override === '0' ||
+                                (override !== '1' && existingCustomerByMsisdn[operatorMsisdn] === true);
+                            if (!msisdnOmitted) return authenticationType;
+                            const alt = String(process.env.CPS_OPERATOR_AUTH_TYPE_NO_MSISDN || '').trim() || '01';
+                            return alt.toUpperCase() === 'HANDSET' ? '02' : alt;
+                        })(),
                         // En prod, UserName peut devoir être vide (cf export opérateurs) ou un login non-MSISDN.
                         // Par défaut on laisse vide et on permet de forcer via .env.
-                        userName: process.env.CPS_OPERATOR_USERNAME ?? '',
+                        // NOTE: en mode "sans MSISDN" (souvent Web), CPS attend fréquemment un UserName non vide.
+                        // On met par défaut OperatorID, sauf si override via env.
+                        userName: (() => {
+                            const base = process.env.CPS_OPERATOR_USERNAME ?? '';
+                            const override = String(process.env.CPS_OPERATOR_INCLUDE_MSISDN || '').trim();
+                            const msisdnOmitted =
+                                override === '0' ||
+                                (override !== '1' && existingCustomerByMsisdn[operatorMsisdn] === true);
+                            if (!msisdnOmitted) return base;
+                            const noMsisdnUser = process.env.CPS_OPERATOR_USERNAME_NO_MSISDN;
+                            if (noMsisdnUser !== undefined) return String(noMsisdnUser);
+                            return operatorId;
+                        })(),
                         operatorId,
                         // Stratégie MSISDN:
                         // - si le numéro a déjà un compte (precheck), on n'envoie PAS MSISDN (mais on garde notificationMsisdn).
