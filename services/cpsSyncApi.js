@@ -54,9 +54,13 @@ function buildSoapHeaders({ soapAction } = {}) {
   // Beaucoup de stacks SOAP (CXF/Axis) routent l’opération via SOAPAction.
   // Si l’action n’est pas fournie, certains serveurs renvoient "WSA Action = null".
   // CPS_SOAP_ACTION (si défini) doit être PRIORITAIRE.
+  // NOTE: si CPS_SOAP_ACTION est défini mais vide (ex: CPS_SOAP_ACTION=),
+  // on l’ignore pour permettre l’auto-détection par commande (CreateTopOrg, CreateOrgOperator, ...).
   if (process.env.CPS_SOAP_ACTION !== undefined) {
-    const envAction = String(process.env.CPS_SOAP_ACTION);
-    headers.SOAPAction = envAction === '' ? '""' : envAction;
+    const envAction = String(process.env.CPS_SOAP_ACTION).trim();
+    if (envAction !== '') {
+      headers.SOAPAction = envAction;
+    }
   } else if (soapAction !== undefined) {
     const action = String(soapAction);
     headers.SOAPAction = action === '' ? '""' : action;

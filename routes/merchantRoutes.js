@@ -448,9 +448,11 @@ router.post(
 
             // === Pré-check (optionnel): QueryCustomerInfo sur MSISDN opérateur ===
             // Ancien workflow: rejeter si le numéro a déjà un compte Moov Money.
-            // Nouveau workflow: par défaut on NE rejette PAS et on crée l'opérateur sans MSISDN.
+            // Nouveau workflow: si le numéro existe déjà, on créera l'opérateur SANS MSISDN
+            // (mais en gardant Notification Receiving MSISDN), sinon on inclut le MSISDN.
             const CPS_URL = process.env.CPS_URL;
             const enableCustomerPrecheck = String(process.env.CPS_PRECHECK_CUSTOMERINFO || '').trim() === '1';
+            const existingCustomerByMsisdn = {};
             if (CPS_URL && enableCustomerPrecheck) {
                 const requiredForQueryCustomer = [
                     'CPS_THIRD_PARTY_ID',
@@ -492,18 +494,9 @@ router.post(
                             );
 
                         if (looksExisting) {
-                            const reason = `Rejeté : le numéro opérateur ${msisdn} est déjà utilisé par un compte Moov Money. Veuillez demander au client un numéro non utilisé (sans compte Moov Money), puis refaire l’enrôlement.`;
-                            merchant.statut = 'rejeté';
-                            merchant.rejectionReason = reason;
-                            merchant.lastModifiedBy = req.user.id;
-                            merchant.lastModifiedAt = Date.now();
-
-                            // On remet l'intégration CPS à l'état neutre (aucune création).
-                            merchant.cpsIntegration = merchant.cpsIntegration || {};
-                            merchant.cpsIntegration.status = 'failed';
-                            merchant.cpsIntegration.error = reason;
-                            await merchant.save();
-                            return res.status(400).json({ msg: reason, merchant });
+                            existingCustomerByMsisdn[msisdn] = true;
+                        } else {
+                            existingCustomerByMsisdn[msisdn] = false;
                         }
                     }
                 }
@@ -736,8 +729,17 @@ router.post(
                         // Par défaut on laisse vide et on permet de forcer via .env.
                         userName: process.env.CPS_OPERATOR_USERNAME ?? '',
                         operatorId,
-                        // Nouveau workflow prod: ne pas passer le MSISDN à la création d'opérateur.
-                        msisdn: process.env.CPS_OPERATOR_INCLUDE_MSISDN === '1' ? operatorMsisdn : '',
+                        // Stratégie MSISDN:
+                        // - si le numéro a déjà un compte (precheck), on n'envoie PAS MSISDN (mais on garde notificationMsisdn).
+                        // - sinon, on envoie MSISDN (comportement standard attendu par CPS quand auth=HANDSET/02).
+                        // - override global possible: CPS_OPERATOR_INCLUDE_MSISDN=0 force l'omission, =1 force l'inclusion.
+                        msisdn: (() => {
+                            const override = String(process.env.CPS_OPERATOR_INCLUDE_MSISDN || '').trim();
+                            if (override === '0') return '';
+                            if (override === '1') return operatorMsisdn;
+                            const exists = existingCustomerByMsisdn[operatorMsisdn];
+                            return exists ? '' : operatorMsisdn;
+                        })(),
                         roleId,
                         roleEffectiveDate,
                         roleExpiryDate,
