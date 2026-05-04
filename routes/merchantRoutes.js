@@ -638,7 +638,15 @@ router.post(
             // 2) CreateOrgOperator (pour chaque opérateur)
             // Valeurs fixes (référence: export opérateurs)
             const roleId = process.env.CPS_OPERATOR_ROLE_ID || '500000000000011413';
-            const roleEffectiveDate = process.env.CPS_OPERATOR_ROLE_EFFECTIVE_DATE || todayYYYYMMDD();
+            // CPS refuse une EffectiveDate antérieure à la date courante (ex: TP40254).
+            // Si une date est fournie dans .env mais qu'elle est dans le passé, on force à aujourd'hui.
+            const roleEffectiveDate = (() => {
+                const today = todayYYYYMMDD();
+                const fromEnv = String(process.env.CPS_OPERATOR_ROLE_EFFECTIVE_DATE || '').trim();
+                if (!fromEnv) return today;
+                // Format attendu yyyyMMdd ; comparaison lexicographique OK.
+                return fromEnv < today ? today : fromEnv;
+            })();
             const roleExpiryDate = process.env.CPS_OPERATOR_ROLE_EXPIRY_DATE || '20990320';
             const authTypeEnv = (process.env.CPS_OPERATOR_AUTH_TYPE || 'HANDSET').trim();
             // CPS (SYNCAPI) attend souvent un code (ex: "02") même si l’UI affiche "HANDSET".
