@@ -142,18 +142,18 @@ router.get(
     async (req, res) => {
         try {
             const { startDate, endDate } = req.query;
-            let filter = { statut: 'validé' };
+            let filter = { statut: 'cree' };
 
             if (startDate) {
-                filter.validatedAt = { ...filter.validatedAt, $gte: new Date(startDate) };
+                filter.createdAt = { ...filter.createdAt, $gte: new Date(startDate) };
             }
             if (endDate) {
-                filter.validatedAt = { ...filter.validatedAt, $lte: new Date(endDate) };
+                filter.createdAt = { ...filter.createdAt, $lte: new Date(endDate) };
             }
 
             const merchants = await Merchant.find(filter).lean();
             if (!merchants || merchants.length === 0) {
-                return res.status(404).json({ msg: 'Aucun marchand validé à exporter.' });
+                return res.status(404).json({ msg: 'Aucun marchand créé à exporter.' });
             }
 
             const headers = [
@@ -266,9 +266,16 @@ router.get(
             const merchants = await Merchant.find(filter)
                 .populate('agentRecruteurId', 'matricule')
                 .sort(sort)
-                .select('-documents');
+                .select('-documents')
+                .lean();
 
-            res.json(merchants);
+            const merchantsForFrontEnd = merchants.map(merchant => ({
+                ...merchant,
+                displayName: merchant.shortCode ? `${merchant.shortCode} ${merchant.nom}` : merchant.nom,
+                creationDate: merchant.createdAt,
+            }));
+
+            res.json(merchantsForFrontEnd);
         } catch (err) {
             console.error(err.message);
             res.status(500).send('Erreur du serveur.');
